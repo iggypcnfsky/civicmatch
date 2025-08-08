@@ -1,26 +1,66 @@
 @import "tailwindcss";
 
+/* Civic Match Theme (DM Sans + palette) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light theme */
+  --background: #FFFCF2; /* Ivory */
+  --foreground: #252422; /* Charcoal */
+  --muted: #CCC5B9;      /* Stone */
+  --accent: #EB5E28;     /* Orange */
+  --divider: color-mix(in srgb, var(--foreground) 25%, transparent);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-border: var(--divider);
+  --font-sans: var(--font-dm-sans);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Invert foreground for better contrast, keep warm background */
+    --background: #252422;
+    --foreground: #FFFCF2;
+    --muted: #CCC5B9;
+    --accent: #EB5E28;
+    --divider: color-mix(in srgb, var(--foreground) 25%, transparent);
   }
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Shared utility accents */
+.btn {
+  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors;
+}
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--background);
+}
+.btn-primary:hover { filter: brightness(0.95); }
+.btn-muted {
+  background-color: color-mix(in srgb, var(--muted) 40%, var(--background));
+  color: var(--foreground);
+}
+.card {
+  @apply rounded-xl border p-4 bg-[color:var(--background)]/80;
+  border-color: var(--divider);
+}
+
+/* Divider utility */
+.border-divider { border-color: var(--divider) !important; }
+hr { border-color: var(--divider); }
+
+/* Ensure default Tailwind border utilities use our divider tone */
+.border, .border-t, .border-b, .border-l, .border-r,
+.divide-y > :not([hidden]) ~ :not([hidden]),
+.divide-x > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--divider) !important;
 }
