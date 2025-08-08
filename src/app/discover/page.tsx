@@ -7,7 +7,6 @@ import {
   MapPin,
   Mail,
   UserRound,
-  Search,
   Star,
   SlidersHorizontal,
   Briefcase,
@@ -128,7 +127,7 @@ export default function DiscoverPage() {
                 </div>
               </div>
               <div className="rounded-lg border p-3 mt-3 text-sm bg-[color:var(--background)]">
-                I'm <strong>technical</strong>, ready within a year, and <strong>committed</strong> to an idea. I'm willing to do <strong>Product</strong> and <strong>Engineering</strong>.
+                I’m <strong>technical</strong>, ready within a year, and <strong>committed</strong> to an idea. I’m willing to do <strong>Product</strong> and <strong>Engineering</strong>.
               </div>
             </div>
           </div>
@@ -144,10 +143,10 @@ export default function DiscoverPage() {
                 <div>
                   <div className="font-medium mb-1">Intro</div>
                   <p>
-                    I'm a backend engineer and technical lead with experience delivering distributed
+                    I’m a backend engineer and technical lead with experience delivering distributed
                     systems for automotive, logistics, and enterprise platforms. I enjoy clean
                     architecture, reliability, and mentoring. Recently, I delivered solutions for
-                    Toyota Motors Europe and Wabtec. I'm seeking impact‑driven projects with strong
+                    Toyota Motors Europe and Wabtec. I’m seeking impact‑driven projects with strong
                     teams.
                   </p>
                 </div>

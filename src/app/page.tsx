@@ -364,7 +364,7 @@ function LoginScreen({ onContinue }: { onContinue: () => void }) {
       setSlideIndex((s) => (s + 1) % slides.length);
     }, 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [slides.length]);
 
   return (
     <div className="min-h-dvh grid md:[grid-template-columns:minmax(0,1fr)_minmax(0,1fr)]">
