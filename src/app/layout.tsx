@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+import SidebarClientGate from "@/components/SidebarClientGate";
+import MobileMenu from "@/components/MobileMenu";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -23,8 +24,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${dmSans.variable} antialiased bg-background text-foreground`}>
         <div className="min-h-dvh grid grid-cols-1 md:grid-cols-[auto_1fr]">
-          <Sidebar />
-          <div>{children}</div>
+          <SidebarClientGate />
+          <div>
+            <MobileMenu />
+            {children}
+          </div>
         </div>
       </body>
     </html>

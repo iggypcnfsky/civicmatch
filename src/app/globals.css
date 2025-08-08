@@ -50,7 +50,7 @@ html, body {
   color: var(--foreground);
 }
 .card {
-  @apply rounded-xl border p-4 bg-[color:var(--background)]/80;
+  @apply rounded-xl border p-4 md:p-5 lg:p-6 bg-[color:var(--background)]/80;
   border-color: var(--divider);
 }
 
@@ -63,4 +63,13 @@ hr { border-color: var(--divider); }
 .divide-y > :not([hidden]) ~ :not([hidden]),
 .divide-x > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--divider) !important;
+}
+
+/* Simple entrance animation for login slides */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  animation: fadeInUp 300ms ease-out;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserRound, Camera, MapPin, Save } from "lucide-react";
 
 export default function ProfilePage() {
@@ -9,6 +9,15 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("hey@iggy.love");
   const [location, setLocation] = useState("Kraków, Poland");
   const [bio, setBio] = useState("hey!");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("civicmatch.name") || localStorage.getItem("civicmatch.displayName");
+    if (stored) {
+      const parts = stored.split(" ");
+      setFirst(parts[0] || "");
+      setLast(parts.slice(1).join(" ") || "");
+    }
+  }, []);
 
   return (
     <div className="min-h-dvh p-4 md:p-6 lg:p-8 space-y-6">
@@ -40,7 +49,17 @@ export default function ProfilePage() {
           <div className="card space-y-4">
             <div className="border-b border-divider pb-3 flex items-center justify-between">
               <h2 className="font-semibold">Basics</h2>
-              <button className="btn btn-primary"><Save className="mr-2 size-4" /> Save</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  const display = `${first} ${last}`.trim();
+                  localStorage.setItem("civicmatch.name", display);
+                  localStorage.setItem("civicmatch.displayName", display);
+                  alert("Profile saved");
+                }}
+              >
+                <Save className="mr-2 size-4" /> Save
+              </button>
             </div>
 
             <div className="flex items-center gap-4">

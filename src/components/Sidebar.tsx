@@ -15,13 +15,13 @@ import {
   LogOut,
 } from "lucide-react";
 
-type NavItem = {
+export type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 };
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/messages", label: "Messages", icon: MessageSquareText },
@@ -99,7 +99,13 @@ export function Sidebar() {
         <button className="btn btn-primary w-full justify-center">
           <UserPlus className="mr-2 size-4" /> {!collapsed && "Sign up"}
         </button>
-        <button className="btn btn-muted w-full justify-center" onClick={() => alert("Logged out (demo)") }>
+        <button
+          className="btn btn-muted w-full justify-center"
+          onClick={() => {
+            localStorage.setItem("civicmatch.authenticated", "0");
+            window.location.href = "/";
+          }}
+        >
           <LogOut className="mr-2 size-4" /> {!collapsed && "Log out"}
         </button>
       </div>
