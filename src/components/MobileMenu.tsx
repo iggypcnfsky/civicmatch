@@ -11,6 +11,9 @@ export default function MobileMenu() {
 
   useEffect(() => {
     setIsAuthed(localStorage.getItem("civicmatch.authenticated") === "1");
+    const handler = () => setIsAuthed(localStorage.getItem("civicmatch.authenticated") === "1");
+    window.addEventListener("civicmatch:auth-changed", handler);
+    return () => window.removeEventListener("civicmatch:auth-changed", handler);
   }, []);
 
   if (!isAuthed) return null;

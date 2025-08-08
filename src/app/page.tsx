@@ -284,6 +284,7 @@ export default function DashboardPage() {
       <LoginScreen
         onContinue={() => {
           localStorage.setItem("civicmatch.authenticated", "1");
+          window.dispatchEvent(new Event("civicmatch:auth-changed"));
           setIsAuthenticated(true);
         }}
       />
