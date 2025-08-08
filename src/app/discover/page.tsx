@@ -14,9 +14,6 @@ import {
   Wrench,
   Link as LinkIcon,
   AtSign,
-  Image as ImageIcon,
-  Play,
-  Pause,
 } from "lucide-react";
 
 export default function DiscoverPage() {
@@ -37,8 +34,7 @@ export default function DiscoverPage() {
   const [contributions, setContributions] = useState<string[]>(["Volunteering"]);
   const [backgrounds, setBackgrounds] = useState<string[]>([]);
   const [orgTypes, setOrgTypes] = useState<string[]>([]);
-  const [coverAlt, setCoverAlt] = useState(false);
-  const [videoPlaying, setVideoPlaying] = useState(false);
+  // Removed cover/video for a cleaner profile header
 
   const toggle = (arr: string[], value: string, setter: (v: string[]) => void) => {
     setter(arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value]);
@@ -75,60 +71,23 @@ export default function DiscoverPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
         {/* Main column */}
         <div className="xl:col-span-2 space-y-4">
-          {/* Header with cover and media */}
-          <div className="card flex flex-col gap-3 overflow-hidden p-0">
-            <div
-              className="relative h-36 md:h-44 w-full"
-              style={{
-                background:
-                  coverAlt
-                    ? "linear-gradient(135deg,#EB5E28 0%,#252422 60%)"
-                    : "linear-gradient(135deg,#CCC5B9 0%,#FFFCF2 60%)",
-              }}
-            >
-              <button
-                className="absolute top-2 right-2 btn btn-muted"
-                onClick={() => setCoverAlt((v) => !v)}
-              >
-                <ImageIcon className="mr-2 size-4" /> Change cover
-              </button>
-              <div className="absolute bottom-2 left-2 flex items-center gap-2">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => setVideoPlaying((v) => !v)}
-                >
-                  {videoPlaying ? (
-                    <>
-                      <Pause className="mr-2 size-4" /> Pause intro
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 size-4" /> Play intro
-                    </>
-                  )}
-                </button>
-                <span className="text-xs opacity-70 hidden md:block">
-                  {videoPlaying ? "Playing sample video…" : "Video available"}
-                </span>
+          {/* Header without cover/video */}
+          <div className="card flex flex-col gap-3 p-4">
+            <div className="flex items-center gap-5">
+              <div className="size-24 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center">
+                <UserRound className="size-10 text-[color:var(--foreground)]/70" />
+              </div>
+              <div>
+                <h1 className="text-xl md:text-2xl font-semibold">Mohamed Riyas</h1>
+                <div className="flex items-center gap-3 text-sm text-[color:var(--foreground)]/70">
+                  <span className="inline-flex items-center gap-1"><MapPin className="size-4" /> Bucharest, Romania</span>
+                  <span>33</span>
+                  <span>Last seen 5 days ago</span>
+                </div>
               </div>
             </div>
-            <div className="p-4">
-              <div className="flex items-center gap-4">
-                <div className="size-16 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center">
-                  <UserRound className="size-8 text-[color:var(--foreground)]/70" />
-                </div>
-                <div>
-                  <h1 className="text-xl md:text-2xl font-semibold">Mohamed Riyas</h1>
-                  <div className="flex items-center gap-3 text-sm text-[color:var(--foreground)]/70">
-                    <span className="inline-flex items-center gap-1"><MapPin className="size-4" /> Bucharest, Romania</span>
-                    <span>33</span>
-                    <span>Last seen 5 days ago</span>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg border p-3 mt-3 text-sm bg-[color:var(--background)]">
-                I’m <strong>technical</strong>, ready within a year, and <strong>committed</strong> to an idea. I’m willing to do <strong>Product</strong> and <strong>Engineering</strong>.
-              </div>
+            <div className="rounded-lg border p-3 text-sm bg-[color:var(--background)]">
+              I’m <strong>technical</strong>, ready within a year, and <strong>committed</strong> to an idea. I’m willing to do <strong>Product</strong> and <strong>Engineering</strong>.
             </div>
           </div>
           {/* Content sections in two-column grid */}
