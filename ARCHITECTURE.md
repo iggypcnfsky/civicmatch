@@ -105,6 +105,32 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
 - Mobile: sticky bottom "Filters" pill that opens a bottom‑sheet modal with the same controls; hamburger menu removed
 - Profile cards: rounded corners, subtle shadow, role badge and save control; show name + short bio
 - Clicking a profile card navigates to the Profiles view (`/profiles`) to show a full profile
+
+#### Explore data fetching & pagination (MVP)
+- **Source**: `public.profiles` (RLS allows `SELECT` for all). Read fields: `user_id`, `username`, and `data` (use `data.displayName`, `data.bio`, `data.skills[0]` as role, `data.avatarUrl`).
+- **Initial load**: fetch the first page with `limit = 24`.
+- **Pagination strategy**:
+  - Start with simple `offset/limit` for MVP (fast to ship, adequate for small N and varied filters):
+    - Request: `?limit=24&offset=0`, next page `offset += 24`.
+    - SQL/PostgREST: `.select('*').order('created_at', { ascending: false }).range(offset, offset+limit-1)`.
+  - Upgrade to keyset pagination for stability and performance at scale:
+    - Order by `(created_at desc, user_id desc)` with indexes.
+    - Cursor encodes last `(created_at, user_id)`; query uses tuple comparison:
+      - `where created_at < $cursorCreatedAt OR (created_at = $cursorCreatedAt AND user_id < $cursorUserId)`.
+    - Returns `items` + `nextCursor` until empty.
+- **Indexes**:
+  - Add `create index if not exists profiles_created_at_idx on public.profiles(created_at desc);` to support ordering.
+  - Already present: `GIN` on `data` for JSONB filters.
+- **Transport & API**:
+  - MVP: client fetch with `@supabase/supabase-js` (anon) directly from the Explore page.
+  - Next step (preferred): centralize in a route handler `GET /api/profiles` that accepts filters and `cursor/offset`, returns `{ items, nextCursor | nextOffset }` to keep query logic server‑side.
+- **Infinite scroll**:
+  - Use the existing `IntersectionObserver` sentinel at the bottom of the list.
+  - On intersect, fetch next page (guard with `isLoading` and `hasMore`).
+  - De‑dupe by `user_id` to avoid duplicates.
+- **Filters (later)**:
+  - JSONB containment for facets, e.g., Supabase: `.contains('data', { skills: ['Design'] })` and `.contains('data', { causes: ['Climate'] })`.
+  - Combine with keyset/offset; keep page size fixed (24) and pass filters to API to compute `nextCursor` consistently.
 ### Profiles view
 - Uses the same global top bar
 - Left column shows a flexible grid of panels (no fixed 1/3 or 2/3 rules):
@@ -121,7 +147,7 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
 - Mirrors public profile panels (NAME/basic, SAME, FAME, AIM, GAME, Portfolio) but all fields are editable
 - Add/Remove items where relevant (links, AIM cards, portfolio links)
 - Add New Section for custom content blocks
-- Save persists a draft locally for now; desktop Save in header; mobile has a sticky bottom Save bar
+- Save persists to Supabase `public.profiles.data` (JSONB) and also stores a local draft for instant UX; desktop Save in header; mobile has a sticky bottom Save bar
 
 ## Routing & structure (App Router)
 
@@ -176,6 +202,76 @@ Guidance
 - **JSONB strategy**
   - Keep minimal relational columns for identity, joins, constraints, and hot filters (e.g., `user_id`, `username`, `status`, foreign keys).
   - Store flexible, evolving attributes in `data jsonb` with GIN indexes for search. Add expression indexes for common access paths.
+
+### Storage (avatars)
+
+- **Bucket**: `avatars` (public) for profile pictures.
+- **Path convention**: `userId/<filename>` (e.g., `f0a1.../avatar-1700000000000.webp`).
+- **Linking**: store the absolute public URL in `public.profiles.data.avatarUrl`. Optionally also store `avatarPath` (storage key) for future migrations/cache busting.
+
+SQL migration to create the bucket and RLS policies (add as `supabase/migrations/0002_storage_avatars.sql`):
+
+```sql
+-- Create a public bucket for profile avatars (no-op if it already exists)
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+-- RLS: public read of avatar images
+create policy if not exists "avatars_public_read" on storage.objects
+for select using (bucket_id = 'avatars');
+
+-- RLS: authenticated users can upload to their own folder (prefix matches auth.uid())
+create policy if not exists "avatars_authenticated_upload_own_folder" on storage.objects
+for insert to authenticated with check (
+  bucket_id = 'avatars' and split_part(name, '/', 1) = auth.uid()::text
+);
+
+-- RLS: authenticated users can update and delete their own objects
+create policy if not exists "avatars_update_own" on storage.objects
+for update to authenticated using (
+  bucket_id = 'avatars' and split_part(name, '/', 1) = auth.uid()::text
+);
+
+create policy if not exists "avatars_delete_own" on storage.objects
+for delete to authenticated using (
+  bucket_id = 'avatars' and split_part(name, '/', 1) = auth.uid()::text
+);
+```
+
+Client flow (My Profile view):
+- **Upload**: when a user selects an image, upload to `avatars` with key `${user.id}/avatar-${Date.now()}.${ext}` (set `cacheControl` and `upsert: true`).
+- **URL**: retrieve a public URL via `storage.from('avatars').getPublicUrl(key)`.
+- **Persist**: update `public.profiles.data.avatarUrl` for the current user (policy `profiles_update_own` already allows this).
+- **Images**: allow JPEG/PNG/WebP; cap size; optionally delete old objects when replacing.
+- **Next/Image**: add the Supabase storage domain to `next.config.ts` `images.remotePatterns` to render remote avatars.
+
+Lifecycle:
+- **Replace**: after a successful upload, delete the previous object (if any) whose storage key is derived from the old `avatarUrl` path (`/storage/v1/object/public/<bucket>/<key>`).
+- **Remove**: delete the current object and clear `profiles.data.avatarUrl`.
+
+Rendering:
+- **Explore**: cards show the avatar image in the card header if `profiles.data.avatarUrl` is present.
+- **Profiles**: public profile view shows the avatar image in the NAME panel; edit view previews and manages uploads/removals.
+
+Automation (using MCP Supabase tools):
+- Apply the SQL above as a migration via the MCP Supabase migration tool, or run it once in SQL Editor. After creation, no further management is required in code.
+- Optionally generate refreshed types if the app references storage types (not required for this change).
+
+### Current implementation (status)
+- **Environment**: `.env` contains `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (not committed).
+- **Client**: browser client in `src/lib/supabase/client.ts`. Server wrapper will be added when RSC reads are implemented.
+- **Types**: generated at `src/types/supabase.ts` and refreshed after migrations.
+- **Migrations**: `supabase/migrations/0001_init.sql` applied (profiles, connections, conversations, messages, saved_searches + RLS + triggers).
+- **Auth wiring**: Explore page (`/`) login/register form uses Supabase Auth (email/password). After auth, an `ensureProfile` step upserts into `public.profiles` with `user_id`, `username = email`, and a starter `data` payload.
+- **Profile editing**: `profile/page.tsx` loads `public.profiles.data` for the current user and updates it on Save. Logout calls `supabase.auth.signOut()`.
+
+### Auth & profile lifecycle
+1. User signs up or logs in on `/` using email/password via Supabase Auth.
+2. On success, app upserts `public.profiles` with `user_id` and `username = email` (unique), plus `data.email`.
+3. Navigating to `/profile` loads `profiles.data` for the current user and binds it to the edit form.
+4. Clicking Save updates `profiles.data` (JSONB). Local draft remains for resilience.
+5. Logout signs out via Supabase and clears local flags.
 
 ## Database schema (JSONB‑first)
 

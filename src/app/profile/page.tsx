@@ -1,61 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
 type AimItem = { title: string; summary: string };
 type CustomSection = { id: string; title: string; content: string };
 
 export default function ProfilePage() {
-  const [first, setFirst] = useState("Nadia");
-  const [last, setLast] = useState("A.");
-  const [email, setEmail] = useState("nadia@civic.design");
-  const [location, setLocation] = useState("Bucharest, Romania");
-  const [tags, setTags] = useState("Designer, Civic Tech, Open Data");
-  const [bio, setBio] = useState(
-    "I’m a civic‑minded product designer focused on making public information legible and useful."
-  );
-  const [links, setLinks] = useState<string[]>(["nadia.design", "linkedin.com/in/nadia"]);
-  const [skills, setSkills] = useState("UX, UI, Design Systems, Prototyping, Accessibility");
-  const [fame, setFame] = useState(
-    "Led redesign of Bucharest’s open budget portal used by 200k citizens; featured by OpenGov Europe."
-  );
-  const [aim, setAim] = useState<AimItem[]>([
-    { title: "Open Budget Explorer", summary: "City widgets to compare spending, invite feedback." },
-    { title: "Service Finder", summary: "Eligibility matching for social benefits and services." },
-  ]);
-  const [game, setGame] = useState(
-    "Build a lightweight civic design toolkit adopted by municipalities; mentor civic product teams."
-  );
-  const [portfolio, setPortfolio] = useState<string[]>(["https://example.com/work-1", "https://example.com/work-2"]);
+  // Initialize empty so fetched data is not overridden by demo defaults
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [email, setEmail] = useState("");
+  const [location, setLocation] = useState("");
+  const [tags, setTags] = useState("");
+  const [bio, setBio] = useState("");
+  const [links, setLinks] = useState<string[]>([]);
+  const [skills, setSkills] = useState("");
+  const [fame, setFame] = useState("");
+  const [aim, setAim] = useState<AimItem[]>([]);
+  const [game, setGame] = useState("");
+  const [portfolio, setPortfolio] = useState<string[]>([]);
   const [customSections, setCustomSections] = useState<CustomSection[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("civicmatch.profileDraft");
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        setFirst(data.first ?? first);
-        setLast(data.last ?? last);
-        setEmail(data.email ?? email);
-        setLocation(data.location ?? location);
-        setTags(data.tags ?? tags);
-        setBio(data.bio ?? bio);
-        setLinks(data.links ?? links);
-        setSkills(data.skills ?? skills);
-        setFame(data.fame ?? fame);
-        setAim(data.aim ?? aim);
-        setGame(data.game ?? game);
-        setPortfolio(data.portfolio ?? portfolio);
-        setCustomSections(data.customSections ?? customSections);
-      } catch {}
-    }
-  }, []);
-
-  const saveAll = () => {
-    const payload = {
-      first,
-      last,
+  function buildProfileData() {
+    const displayName = `${first} ${last}`.trim();
+    return {
+      displayName,
       email,
       location,
       tags,
@@ -67,25 +41,148 @@ export default function ProfilePage() {
       game,
       portfolio,
       customSections,
-    };
-    localStorage.setItem("civicmatch.profileDraft", JSON.stringify(payload));
-    const display = `${first} ${last}`.trim();
-    localStorage.setItem("civicmatch.name", display);
-    localStorage.setItem("civicmatch.displayName", display);
-    alert("Profile saved");
+      avatarUrl,
+    } as const;
+  }
+
+  function applyProfileData(d: any) {
+    if (!d) return;
+    setFirst(d.displayName?.split(" ")?.[0] ?? "");
+    setLast(d.displayName?.split(" ").slice(1).join(" ") ?? "");
+    setEmail(d.email ?? "");
+    setLocation(d.location ?? "");
+    setTags(d.tags ?? "");
+    setBio(d.bio ?? "");
+    setLinks(Array.isArray(d.links) ? d.links : []);
+    setSkills(d.skills ?? "");
+    setFame(d.fame ?? "");
+    setAim(Array.isArray(d.aim) ? d.aim : []);
+    setGame(d.game ?? "");
+    setPortfolio(Array.isArray(d.portfolio) ? d.portfolio : []);
+    setCustomSections(Array.isArray(d.customSections) ? d.customSections : []);
+    setAvatarUrl(d.avatarUrl ?? "");
+  }
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        const user = userRes?.user;
+        if (!user) return;
+        // Ensure a profile exists (create once; never overwrite existing data)
+        const username = user.email ?? "";
+        const existing = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!existing.data && username) {
+          await supabase
+            .from("profiles")
+            .insert({ user_id: user.id, username, data: { email: username } });
+        }
+        const { data, error } = await supabase.from("profiles").select("data").eq("user_id", user.id).single();
+        if (!error && data?.data) {
+          applyProfileData(data.data);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const saveAll = async () => {
+    setLoading(true);
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const user = userRes?.user;
+      if (!user) return alert("Not authenticated");
+      const payload = buildProfileData();
+      await supabase
+        .from("profiles")
+        .update({ data: payload })
+        .eq("user_id", user.id);
+      localStorage.setItem("civicmatch.profileDraft", JSON.stringify(payload));
+      const display = `${first} ${last}`.trim();
+      localStorage.setItem("civicmatch.name", display);
+      localStorage.setItem("civicmatch.displayName", display);
+      try { window.dispatchEvent(new Event("civicmatch:profile-updated")); } catch {}
+      alert("Profile saved");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  function getStorageKeyFromPublicUrl(publicUrl: string): { bucket: string; path: string } | null {
+    try {
+      const u = new URL(publicUrl);
+      const marker = "/storage/v1/object/public/";
+      const idx = u.pathname.indexOf(marker);
+      if (idx === -1) return null;
+      const rest = u.pathname.substring(idx + marker.length);
+      const segs = rest.split("/");
+      const bucket = segs.shift() || "";
+      if (!bucket) return null;
+      const path = segs.join("/");
+      if (!path) return null;
+      return { bucket, path };
+    } catch {
+      return null;
+    }
+  }
+
+  async function uploadAvatar(file: File) {
+    const { data: userRes } = await supabase.auth.getUser();
+    const user = userRes?.user;
+    if (!user) return alert("Not authenticated");
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    const nextPath = `${user.id}/avatar-${Date.now()}.${ext}`;
+    const previous = avatarUrl ? getStorageKeyFromPublicUrl(avatarUrl) : null;
+    const { error: upErr } = await supabase
+      .storage
+      .from("avatars")
+      .upload(nextPath, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
+    if (upErr) return alert(upErr.message);
+    const { data: pub } = supabase.storage.from("avatars").getPublicUrl(nextPath);
+    const url = pub.publicUrl;
+    await saveAvatarUrl(url);
+    if (previous && previous.bucket === "avatars" && previous.path !== nextPath) {
+      await supabase.storage.from("avatars").remove([previous.path]);
+    }
+  }
+
+  async function saveAvatarUrl(url: string) {
+    const { data: userRes } = await supabase.auth.getUser();
+    const user = userRes?.user;
+    if (!user) return;
+    setAvatarUrl(url);
+    const payload = { ...buildProfileData(), avatarUrl: url } as any;
+    await supabase.from("profiles").update({ data: payload }).eq("user_id", user.id);
+  }
+
+  async function removeAvatar() {
+    const { data: userRes } = await supabase.auth.getUser();
+    const user = userRes?.user;
+    if (!user) return alert("Not authenticated");
+    const prev = avatarUrl ? getStorageKeyFromPublicUrl(avatarUrl) : null;
+    if (prev && prev.bucket === "avatars") {
+      await supabase.storage.from("avatars").remove([prev.path]);
+    }
+    await saveAvatarUrl("");
+  }
 
   return (
     <div className="min-h-dvh p-4 md:p-6 lg:p-8 space-y-6 pb-28 md:pb-6">
       <header className="flex items-center gap-2">
         <UserRound className="size-5 text-[color:var(--accent)]" />
         <h1 className="text-2xl font-bold">Edit Profile</h1>
-        <button className="ml-auto btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll}>
-          <Save className="mr-2 size-4" /> Save
+        <button className="ml-auto btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll} disabled={loading}>
+          <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
         </button>
         <button
           className="btn btn-muted rounded-full hidden md:inline-flex"
-          onClick={() => { localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
+          onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
         >
           <LogOut className="mr-2 size-4" /> Logout
         </button>
@@ -101,10 +198,32 @@ export default function ProfilePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3 items-start">
               <div className="sm:col-span-1 flex items-center gap-4">
-                <div className="size-16 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center">
-                  <Camera className="size-6" />
+                <div className="relative w-full">
+                  <div className="w-full aspect-[3/2] rounded-2xl bg-[color:var(--muted)]/40 overflow-hidden border border-divider grid place-items-center">
+                    {avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="size-10 opacity-70" />
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (f) await uploadAvatar(f);
+                    }}
+                  />
                 </div>
-                <button className="btn btn-muted rounded-full">Change Picture</button>
+                <div className="flex flex-col gap-2">
+                  <button className="btn btn-muted rounded-full" onClick={() => fileInputRef.current?.click()}>Upload / Change</button>
+                  {avatarUrl && (
+                    <button className="btn btn-muted rounded-full" onClick={removeAvatar}>Remove picture</button>
+                  )}
+                </div>
               </div>
               <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
                 <div>
@@ -166,8 +285,13 @@ export default function ProfilePage() {
           {/* AIM */}
           <section id="aim" className="card space-y-3">
             <header className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">AIM — What I’m Focused On</h2></div>
-              <button className="btn btn-muted" onClick={() => setAim([...aim, { title: "", summary: "" }])}><Plus className="mr-2 size-4" /> Add item</button>
+              <div className="flex items-center gap-2">
+                <Lightbulb className="size-4 text-[color:var(--accent)]" />
+                <h2 className="font-semibold">AIM — What I’m Focused On</h2>
+              </div>
+              <button className="btn btn-muted" onClick={() => setAim([...aim, { title: "", summary: "" }])}>
+                <Plus className="mr-2 size-4" /> Add item
+              </button>
             </header>
             <div className="grid gap-3 sm:grid-cols-2">
               {aim.map((a, i) => (
@@ -218,8 +342,8 @@ export default function ProfilePage() {
             <button className="btn btn-muted rounded-full" onClick={() => setCustomSections([...customSections, { id: crypto.randomUUID(), title: "New section", content: "" }])}>
               <Plus className="mr-2 size-4" /> Add new section
             </button>
-            <button className="btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll}>
-              <Save className="mr-2 size-4" /> Save changes
+            <button className="btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll} disabled={loading}>
+              <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save changes"}
             </button>
           </div>
         </section>
@@ -227,8 +351,8 @@ export default function ProfilePage() {
 
       {/* Sticky mobile save bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t space-y-2">
-        <button className="btn btn-primary w-full rounded-full h-12" onClick={saveAll}><Save className="mr-2 size-4" /> Save</button>
-        <button className="btn btn-muted w-full rounded-full h-12" onClick={() => { localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}><LogOut className="mr-2 size-4" /> Logout</button>
+        <button className="btn btn-primary w-full rounded-full h-12" onClick={saveAll} disabled={loading}><Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}</button>
+        <button className="btn btn-muted w-full rounded-full h-12" onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}><LogOut className="mr-2 size-4" /> Logout</button>
       </div>
     </div>
   );

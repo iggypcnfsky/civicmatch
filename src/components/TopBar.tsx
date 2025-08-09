@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Compass, Mail, UsersRound } from "lucide-react";
 import Logo from "@/components/Logo";
@@ -11,11 +12,30 @@ function pillClasses(active: boolean): string {
 }
 
 export default function TopBar() {
+  const [isAuthed, setIsAuthed] = useState<boolean>(false);
+  const [displayName, setDisplayName] = useState<string>("");
+  // Call usePathname unconditionally to keep hook order stable across renders
   const pathname = usePathname();
+  useEffect(() => {
+    setIsAuthed(localStorage.getItem("civicmatch.authenticated") === "1");
+    const readName = () => {
+      const name = localStorage.getItem("civicmatch.displayName") || localStorage.getItem("civicmatch.name") || "";
+      setDisplayName(name);
+    };
+    readName();
+    const handler = () => setIsAuthed(localStorage.getItem("civicmatch.authenticated") === "1");
+    window.addEventListener("civicmatch:auth-changed", handler);
+    window.addEventListener("civicmatch:profile-updated", readName);
+    window.addEventListener("storage", readName as any);
+    return () => window.removeEventListener("civicmatch:auth-changed", handler);
+  }, []);
+
+  if (!isAuthed) return null;
   const isExplore = pathname === "/";
-  const isProfiles = pathname.startsWith("/profiles");
+  const isProfiles = pathname === "/profiles" || pathname.startsWith("/profiles/");
   const isMessages = pathname.startsWith("/messages");
   const isMessageDetail = pathname.startsWith("/messages/");
+  const isMyProfile = pathname === "/profile";
 
   return (
     <div className="sticky top-0 z-40 px-4 md:px-6 lg:px-8 py-2 bg-[color:var(--background)]/95 backdrop-blur border-b flex items-center justify-between">
@@ -41,9 +61,9 @@ export default function TopBar() {
           <Mail className="size-4" />
           <span className="hidden md:inline">Messages</span>
         </Link>
-        <Link href="/profile" className="h-10 w-10 md:w-auto md:px-3 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/50 gap-2 text-sm" aria-label="Profile">
-          <span className="h-6 w-6 rounded-full bg-[color:var(--muted)]/60 border border-divider" />
-          <span className="hidden md:inline">You</span>
+        <Link href="/profile" className={`${pillClasses(isMyProfile)} md:px-3`} aria-label="Profile">
+          <span className={`h-6 w-6 rounded-full border ${isMyProfile ? "bg-[color:var(--background)]/20 border-[color:var(--background)]/30" : "bg-[color:var(--muted)]/60 border-divider"}`} />
+          <span className="hidden md:inline truncate max-w-[12ch]">{displayName || "You"}</span>
         </Link>
       </div>
     </div>

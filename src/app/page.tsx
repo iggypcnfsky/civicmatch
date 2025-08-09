@@ -2,83 +2,224 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Mail, LogOut, SlidersHorizontal, Bookmark, X, Compass, UserRound } from "lucide-react";
+import { Mail, LogOut, SlidersHorizontal, Bookmark, X, Compass, UserRound, Star } from "lucide-react";
 import Logo from "@/components/Logo";
+import { supabase } from "@/lib/supabase/client";
 
-type Profile = { id: number; name: string; role: string; bio: string };
+type Profile = { id: string; name: string; role: string; bio: string; avatarUrl?: string };
+
+const PAGE_SIZE = 24;
 
 export default function ExplorePage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const [items, setItems] = useState<Profile[]>([]);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("civicmatch.favorites");
+      return new Set<string>(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const [offset, setOffset] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     setIsAuthenticated(localStorage.getItem("civicmatch.authenticated") === "1");
   }, []);
 
-  const initial: Profile[] = useMemo(() => {
-    const names = [
-      "Nadia A.", "Leo D.", "Mina K.", "Tomas P.", "Ilya S.", "Bea M.",
-      "Arun R.", "Sofia L.", "Mateo G.", "Hana K.", "Omar F.", "Lina V.",
-      "Jon P.", "Rina C.", "Kai W.", "Maya T.", "Noah B.", "Zoe H."
-    ];
-    const roles = ["Design", "Product", "Engineering", "Policy"];
-    const bios = [
-      "Designing tools for public transparency",
-      "Product thinker into civic participation",
-      "Backend engineer, reliability‑minded",
-      "Policy researcher focused on data rights",
-    ];
-    return Array.from({ length: 18 }).map((_, i) => ({
-      id: i + 1,
-      name: names[i % names.length],
-      role: roles[i % roles.length],
-      bio: bios[i % bios.length],
-    }));
-  }, []);
-  const [items, setItems] = useState<Profile[]>(initial);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  function mapRowToProfile(row: any): Profile {
+    const d = row.data || {};
+    const name: string = d.displayName || row.username || "Member";
+    const role: string = Array.isArray(d.skills) && d.skills.length > 0 ? d.skills[0] : "Member";
+    const bio: string = d.bio || "";
+    const avatarUrl: string | undefined = typeof d.avatarUrl === 'string' ? d.avatarUrl : undefined;
+    return { id: row.user_id, name, role, bio, avatarUrl };
+  }
+
+  async function fetchNextPage() {
+    if (isLoading || !hasMore) return;
+    setIsLoading(true);
+    try {
+      const from = offset;
+      const to = offset + PAGE_SIZE - 1;
+      let query = supabase
+        .from("profiles")
+        .select("user_id, username, data, created_at")
+        .order("created_at", { ascending: false });
+      if (favoritesOnly && favoriteIds.size > 0) {
+        // Client-side filter: fetch extra and filter locally to keep MVP simple
+        query = query.range(from, to + 100); // overfetch a bit when filtering
+      } else {
+        query = query.range(from, to);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      let mapped = (data ?? []).map(mapRowToProfile);
+      if (favoritesOnly) mapped = mapped.filter((p) => favoriteIds.has(p.id));
+      setItems((prev) => {
+        const existing = new Set(prev.map((p) => p.id));
+        const merged = [...prev];
+        for (const m of mapped) if (!existing.has(m.id)) merged.push(m);
+        return merged;
+      });
+      setOffset((prev) => prev + (data?.length ?? 0));
+      if (!data || data.length < PAGE_SIZE) setHasMore(false);
+    } catch (e) {
+      // noop for MVP; could add toast
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Initial load on auth
+      setItems([]);
+      setOffset(0);
+      setHasMore(true);
+      // Fire and forget
+      fetchNextPage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const io = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) {
-        setItems((prev) => [
-          ...prev,
-          ...Array.from({ length: 12 }).map((_, i) => ({
-            id: prev.length + i + 1,
-            name: `Person ${prev.length + i + 1}`,
-            role: ["Design", "Product", "Engineering", "Policy"][(prev.length + i) % 4],
-            bio: [
-              "Designing tools for public transparency",
-              "Product thinker into civic participation",
-              "Backend engineer, reliability‑minded",
-              "Policy researcher focused on data rights",
-            ][(prev.length + i) % 4],
-          })),
-        ]);
+        fetchNextPage();
       }
     }, { rootMargin: "200px" });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentinelRef.current, isAuthenticated, isLoading, hasMore]);
+
+  async function ensureProfileForCurrentUser() {
+    const { data: userRes } = await supabase.auth.getUser();
+    const user = userRes?.user;
+    if (!user) return;
+    const username = user.email ?? "";
+    if (!username) return;
+    await supabase
+      .from("profiles")
+      .upsert(
+        {
+          user_id: user.id,
+          username,
+          data: { email: username },
+        },
+        { onConflict: "user_id" }
+      );
+  }
+
+  async function handleLogin() {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await ensureProfileForCurrentUser();
+      localStorage.setItem("civicmatch.authenticated", "1");
+      try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
+      setIsAuthenticated(true);
+    } catch (e: any) {
+      setAuthError(e?.message ?? "Authentication failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleSignup() {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      await ensureProfileForCurrentUser();
+      localStorage.setItem("civicmatch.authenticated", "1");
+      try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
+      setIsAuthenticated(true);
+    } catch (e: any) {
+      setAuthError(e?.message ?? "Sign up failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
 
   if (isAuthenticated === false || isAuthenticated === null) {
     return (
-      <div className="min-h-dvh grid place-items-center p-6">
-        <div className="card max-w-sm w-full text-center space-y-4">
-          <h2 className="text-xl font-semibold">Welcome to Civic Match</h2>
-          <p className="text-sm opacity-80">Sign in to start exploring profiles.</p>
-          <input type="email" placeholder="Email address" className="w-full rounded-md border border-divider bg-transparent px-3 py-2 text-sm" />
-          <button
-            className="btn btn-primary w-full"
-            onClick={() => {
-              localStorage.setItem("civicmatch.authenticated", "1");
-              setIsAuthenticated(true);
-            }}
-          >
-            Continue
-          </button>
-        </div>
+      <div className="min-h-dvh grid grid-cols-1 lg:grid-cols-2">
+        {/* Left: brand + about */}
+        <section className="hidden lg:flex flex-col justify-center p-12 gap-8 bg-[color:var(--muted)]/10 border-r border-divider">
+          <div className="flex items-center gap-4">
+            <Logo className="size-12 text-[color:var(--accent)]" />
+            <div className="text-3xl font-bold tracking-tight">Civic Match</div>
+          </div>
+          <div className="rounded-2xl border p-6 bg-[color:var(--background)]/60">
+            <h2 className="text-xl font-semibold mb-2">About this platform</h2>
+            <p className="text-sm opacity-85 leading-relaxed">
+              Civic Match helps changemakers find the right co‑founders and collaborators for impact
+              projects. Explore aligned profiles, connect with purpose, and build together.
+            </p>
+            <ul className="mt-4 text-sm opacity-85 list-disc pl-5 space-y-1">
+              <li>Search by values, skills, and causes</li>
+              <li>Invite and start messaging instantly</li>
+              <li>Showcase your mission, skills, and projects</li>
+            </ul>
+          </div>
+        </section>
+
+        {/* Right: login/register */}
+        <section className="p-6 lg:p-12 grid place-items-center">
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-3 lg:hidden justify-center mb-6">
+              <Logo className="size-9 text-[color:var(--accent)]" />
+              <div className="text-2xl font-bold">Civic Match</div>
+            </div>
+            <div className="card space-y-4">
+              <h1 className="text-xl font-semibold text-center">Welcome</h1>
+              <p className="text-sm opacity-80 text-center">Sign in or create an account to continue.</p>
+              <div className="space-y-3">
+                <label className="text-xs opacity-70">Email</label>
+                <input value={email} onChange={(e)=>setEmail(e.target.value)} type="email" placeholder="you@example.com" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm" />
+                <label className="text-xs opacity-70">Password</label>
+                <input value={password} onChange={(e)=>setPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm" />
+              </div>
+              {authError && <div className="text-xs text-red-500">{authError}</div>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                <button
+                  className="btn btn-primary w-full disabled:opacity-60"
+                  disabled={authLoading}
+                  onClick={handleLogin}
+                >
+                  {authLoading ? "Loading..." : "Log in"}
+                </button>
+                <button
+                  className="btn btn-muted w-full disabled:opacity-60"
+                  disabled={authLoading}
+                  onClick={handleSignup}
+                >
+                  {authLoading ? "Loading..." : "Create account"}
+                </button>
+              </div>
+              <div className="text-xs opacity-70 text-center">
+                By continuing you agree to our community guidelines.
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
@@ -94,11 +235,27 @@ export default function ExplorePage() {
               <article key={p.id} className="mb-6 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm">
                 <Link href="/profiles" className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl">
                   <div className="relative aspect-[4/3] bg-[color:var(--muted)]/40">
+                    {p.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.avatarUrl} alt={p.name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : null}
                     <span className="absolute top-3 left-3 rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-xs">
                       {p.role}
                     </span>
-                    <button className="absolute top-3 right-3 h-8 w-8 rounded-full bg-[color:var(--background)]/80 border border-divider flex items-center justify-center" aria-label="Save" onClick={(e)=>{e.preventDefault();}}>
-                      <Bookmark className="size-4" />
+                    <button
+                      className={`absolute top-3 right-3 h-8 w-8 rounded-full border flex items-center justify-center ${favoriteIds.has(p.id) ? "bg-[color:var(--accent)] text-[color:var(--background)] border-transparent" : "bg-[color:var(--background)]/80 border-divider"}`}
+                      aria-label="Favorite"
+                      onClick={(e)=>{
+                        e.preventDefault();
+                        setFavoriteIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                          localStorage.setItem("civicmatch.favorites", JSON.stringify(Array.from(next)));
+                          return next;
+                        });
+                      }}
+                    >
+                      <Star className="size-4" />
                     </button>
                   </div>
                   <div className="bg-[color:var(--background)] text-sm p-3 space-y-1">
@@ -109,6 +266,10 @@ export default function ExplorePage() {
               </article>
             ))}
           </div>
+          {isLoading && <div className="py-4 text-center text-sm opacity-70">Loading…</div>}
+          {!hasMore && items.length > 0 && (
+            <div className="py-6 text-center text-sm opacity-70">You’re all caught up</div>
+          )}
           <div ref={sentinelRef} className="h-10" />
         </section>
 
@@ -123,6 +284,18 @@ export default function ExplorePage() {
             <button className="btn btn-muted w-full">Role: Any</button>
             <button className="btn btn-muted w-full">Distance: Anywhere</button>
             <button className="btn btn-muted w-full">Skills: Any</button>
+            <button
+              className={`btn w-full ${favoritesOnly ? 'btn-primary' : 'btn-muted'}`}
+              onClick={() => {
+                const next = !favoritesOnly;
+                setFavoritesOnly(next);
+                // Reset and refetch with new filter
+                setItems([]); setOffset(0); setHasMore(true);
+                fetchNextPage();
+              }}
+            >
+              {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
+            </button>
             <div className="grid grid-cols-2 gap-2">
               <button className="btn btn-muted w-full">Experience: Any</button>
               <button className="btn btn-muted w-full">Availability: Any</button>
