@@ -4,7 +4,7 @@
 
 Civic Match helps changemakers find the right co‑founders and collaborators for impact projects.
 
-- **Discover**: Search and filter people by values, skills, and causes
+- **Explore (default)**: Search and filter people by values, skills, and causes in a masonry grid
 - **Connect**: Built‑in messaging to start conversations quickly
 - **Showcase**: Personal profile highlighting mission, skills, and projects
 - **Manage**: Focused dashboard for connections and conversations
@@ -84,12 +84,36 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
 ## UI/UX architecture
 
 - **Design tokens**: Tailwind theme extended in `tailwind.config` (colors, spacing, radii)
-- **Components**: shadcn/ui primitives composed into Civic Match components
+- **Components**: shadcn/ui primitives composed into Civic Match components (e.g., `Logo`, `ProfileCard`, Filters UI)
   - Foundations: `Button`, `Input`, `Textarea`, `Select`, `Badge`, `Avatar`, `Dialog`, `Sheet`, `Tabs`
   - Domain: `ProfileCard`, `FacetChips`, `MatchList`, `ConversationList`, `MessageBubble`, `ConnectionCard`
 - **Dark mode**: `next-themes` with `ThemeProvider`; store preference in `localStorage`
 - **Responsiveness**: mobile‑first; critical layouts use `grid`/`flex` with safe fallbacks
 - **A11y**: keyboard focus states, Radix primitives, color contrast ≥ 4.5:1
+
+### Global layout
+- No sidebar anywhere in the app
+- Sticky top bar with `Logo` and pill tabs (`Explore`, `Profiles`) on the left, and circular actions on the right (Messages, Logout, Profile)
+- Top bar remains visible while scrolling (backdrop blur), keeps actions accessible
+
+### Explore view
+- Default view after login at `/`
+- Masonry grid of profile cards (CSS columns) with infinite loading using `IntersectionObserver`
+- Desktop: sticky filter panel on the right; offset so it sits below the sticky top bar
+- Mobile: sticky bottom "Filters" pill that opens a bottom‑sheet modal with the same controls; hamburger menu removed
+- Profile cards: rounded corners, subtle shadow, role badge and save control; show name + short bio
+- Clicking a profile card navigates to the Profiles view (`/profiles`) to show a full profile
+### Profiles view
+- Sticky top bar with tabs and actions (same as Explore)
+- Left column shows a flexible grid of panels (no fixed 1/3 or 2/3 rules):
+  - NAME: full‑bleed image panel with large name label at the bottom‑left; adjacent card with location, timezone, tags, social links, and in‑depth bio
+  - SAME: skills and “what I do” with chips
+  - FAME: what the person is known for (unique achievements)
+  - AIM: current focus with sub‑panels for projects/ideas
+  - GAME: long‑term strategy
+  - Custom panels like portfolio
+- Desktop: right column hosts a sticky Invite composer panel sized to half the viewport height; pill‑shaped Skip and Invite buttons with icons
+- Mobile: bottom fixed composer with full‑width textarea; pill‑shaped buttons below (Skip left, Invite right)
 
 ## Routing & structure (App Router)
 
@@ -100,16 +124,14 @@ src/app/
   (auth)/
     sign-in/page.tsx
     callback/route.ts
-  dashboard/
-    page.tsx
-  profile/[username]/page.tsx
+  page.tsx                // Explore (default after login)
+  profile/page.tsx        // Edit your profile
   messages/
-    page.tsx          // list
-    [conversationId]/page.tsx
+    page.tsx              // Conversations list + active thread
   api/
-    search/route.ts   // server search endpoint (if needed)
-layout.tsx
-globals.css
+    search/route.ts       // server search endpoint (if needed)
+  layout.tsx
+  globals.css
 ```
 
 Guidance

@@ -22,8 +22,7 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/discover", label: "Discover", icon: Compass },
+  { href: "/", label: "Explore", icon: Compass },
   { href: "/messages", label: "Messages", icon: MessageSquareText },
   { href: "/profile", label: "Your Profile", icon: UserRound },
 ];
