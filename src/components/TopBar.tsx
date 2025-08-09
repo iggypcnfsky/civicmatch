@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Compass, LogOut, Mail, UsersRound } from "lucide-react";
+import { ArrowLeft, Compass, Mail, UsersRound } from "lucide-react";
 import Logo from "@/components/Logo";
 
 function pillClasses(active: boolean): string {
@@ -26,7 +26,7 @@ export default function TopBar() {
           </Link>
         )}
         <Logo className="size-7 text-[color:var(--foreground)]" />
-        <span className="font-semibold truncate">Civic Match</span>
+        <span className="font-semibold truncate hidden md:inline">Civic Match</span>
       </div>
       <div className="flex items-center gap-2">
         <Link href="/" className={pillClasses(isExplore)} aria-label="Explore">
@@ -41,14 +41,6 @@ export default function TopBar() {
           <Mail className="size-4" />
           <span className="hidden md:inline">Messages</span>
         </Link>
-        <button
-          className="h-10 w-10 md:w-auto md:px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
-          onClick={() => { localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
-          aria-label="Logout"
-        >
-          <LogOut className="size-4" />
-          <span className="hidden md:inline">Logout</span>
-        </button>
         <Link href="/profile" className="h-10 w-10 md:w-auto md:px-3 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/50 gap-2 text-sm" aria-label="Profile">
           <span className="h-6 w-6 rounded-full bg-[color:var(--muted)]/60 border border-divider" />
           <span className="hidden md:inline">You</span>

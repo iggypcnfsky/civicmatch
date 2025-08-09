@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles } from "lucide-react";
+import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut } from "lucide-react";
 
 type AimItem = { title: string; summary: string };
 type CustomSection = { id: string; title: string; content: string };
@@ -82,6 +82,12 @@ export default function ProfilePage() {
         <h1 className="text-2xl font-bold">Edit Profile</h1>
         <button className="ml-auto btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll}>
           <Save className="mr-2 size-4" /> Save
+        </button>
+        <button
+          className="btn btn-muted rounded-full hidden md:inline-flex"
+          onClick={() => { localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
+        >
+          <LogOut className="mr-2 size-4" /> Logout
         </button>
       </header>
 
@@ -220,8 +226,9 @@ export default function ProfilePage() {
       </div>
 
       {/* Sticky mobile save bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t space-y-2">
         <button className="btn btn-primary w-full rounded-full h-12" onClick={saveAll}><Save className="mr-2 size-4" /> Save</button>
+        <button className="btn btn-muted w-full rounded-full h-12" onClick={() => { localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}><LogOut className="mr-2 size-4" /> Logout</button>
       </div>
     </div>
   );
