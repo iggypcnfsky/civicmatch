@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Mail, LogOut, UserRound, Briefcase, Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, MapPin, Compass, Send, XCircle } from "lucide-react";
-import Logo from "@/components/Logo";
+import { Suspense, useEffect, useState } from "react";
+import { Briefcase, Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type AimItem = { title: string; summary: string };
 
@@ -22,62 +21,209 @@ type ViewProfile = {
   avatarUrl?: string;
 };
 
-export default function ProfilesPage() {
+function ProfilesPageInner() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [message, setMessage] = useState("Hey, I’d like to connect!");
+  const [targetUserId, setTargetUserId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const [profile, setProfile] = useState<ViewProfile | null>(null);
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const params = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => { setIsAuthenticated(localStorage.getItem("civicmatch.authenticated") === "1"); }, []);
+
+  // Safe parsers for JSONB payloads
+  const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const toStringArray = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
+    if (typeof v === "string")
+      return v
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    return [];
+  };
+  const toLinksArray = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
+    if (v && typeof v === "object") return Object.values(v).filter((x): x is string => typeof x === "string");
+    return [];
+  };
+  const locationLabel = (v: unknown): string => {
+    if (typeof v === "string") return v;
+    if (v && typeof v === "object") {
+      const o = v as { city?: unknown; country?: unknown };
+      const city = asString(o.city);
+      const country = asString(o.country);
+      if (city && country) return `${city}, ${country}`;
+    }
+    return "";
+  };
+
+  // Load invited (pending) connections for current user to avoid showing already-invited profiles
+  useEffect(() => {
+    (async () => {
+      if (!isAuthenticated) return;
+      const { data: u } = await supabase.auth.getUser();
+      const me = u?.user?.id;
+      setCurrentUserId(me || null);
+      if (!me) return;
+      const { data } = await supabase
+        .from("connections")
+        .select("addressee_id")
+        .eq("requester_id", me)
+        .eq("status", "pending");
+      setInvitedIds(new Set<string>((data || []).map((r: { addressee_id: string }) => r.addressee_id)));
+    })();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     (async () => {
       if (!isAuthenticated) return;
-      // Count rows first
+      const id = params.get("user");
+      // If a specific profile is requested, always show it (even if already invited)
+      if (id) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("user_id, username, data")
+          .eq("user_id", id)
+          .maybeSingle();
+         if (!error && data) {
+          const row = data as { user_id: string; username: string; data: Record<string, unknown> };
+          setTargetUserId(row.user_id);
+          const d = (row.data || {}) as Record<string, unknown>;
+          const name = asString(d.displayName) || row.username || "Member";
+          const location = locationLabel(d.location);
+          const tags = toStringArray(d.tags);
+          const bio = asString(d.bio) || "";
+          const links = toLinksArray(d.links);
+          const skills = toStringArray(d.skills);
+          const fame = asString(d.fame) || "";
+          const aim: AimItem[] = Array.isArray(d.aim) ? (d.aim as AimItem[]) : [];
+          const game = asString(d.game) || "";
+          const portfolio: string[] = Array.isArray(d.portfolio)
+            ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
+            : [];
+          const avatarUrl = asString(d.avatarUrl);
+          setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl });
+          return;
+        }
+      }
+      // Fallback random (exclude invited and self)
       const { count } = await supabase.from("profiles").select("*", { count: "exact", head: true });
       if (!count || count <= 0) return;
-      const randomOffset = Math.floor(Math.random() * count);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("user_id, username, data")
-        .range(randomOffset, randomOffset);
-      if (error || !data || data.length === 0) return;
-      const row = data[0] as any;
-      const d = (row.data || {}) as any;
-
-      const name = d.displayName || row.username || "Member";
-      const location = typeof d.location === "string"
-        ? d.location
-        : d.location?.city && d.location?.country
-          ? `${d.location.city}, ${d.location.country}`
-          : "";
-      const tags = Array.isArray(d.tags)
-        ? d.tags
-        : typeof d.tags === "string"
-          ? d.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
-          : [];
-      const bio = d.bio || "";
-      const links = Array.isArray(d.links)
-        ? d.links
-        : d.links && typeof d.links === "object"
-          ? Object.values(d.links).filter((v: any) => typeof v === "string") as string[]
-          : [];
-      const skills = Array.isArray(d.skills)
-        ? d.skills
-        : typeof d.skills === "string"
-          ? d.skills.split(",").map((s: string) => s.trim()).filter(Boolean)
-          : [];
-      const fame = d.fame || "";
-      const aim: AimItem[] = Array.isArray(d.aim) ? d.aim : [];
-      const game = d.game || "";
-      const portfolio: string[] = Array.isArray(d.portfolio) ? d.portfolio : [];
-
-      const avatarUrl = typeof d.avatarUrl === 'string' ? d.avatarUrl : undefined;
+      let attempt = 0;
+      let chosen: { user_id: string; username: string; data: Record<string, unknown> } | null = null;
+      while (attempt < 10 && !chosen) {
+        const randomOffset = Math.floor(Math.random() * count);
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("user_id, username, data")
+          .range(randomOffset, randomOffset);
+        if (!error && data && data.length > 0) {
+          const row = data[0] as { user_id: string; username: string; data: Record<string, unknown> };
+          const isInvited = invitedIds.has(row.user_id);
+          const isSelf = currentUserId && row.user_id === currentUserId;
+          if (!isInvited && !isSelf) chosen = row;
+        }
+        attempt += 1;
+      }
+      if (!chosen) return;
+      setTargetUserId(chosen.user_id);
+      const d = (chosen.data || {}) as Record<string, unknown>;
+      const name = asString(d.displayName) || chosen.username || "Member";
+      const location = locationLabel(d.location);
+      const tags = toStringArray(d.tags);
+      const bio = asString(d.bio) || "";
+      const links = toLinksArray(d.links);
+      const skills = toStringArray(d.skills);
+      const fame = asString(d.fame) || "";
+      const aim: AimItem[] = Array.isArray(d.aim) ? (d.aim as AimItem[]) : [];
+      const game = asString(d.game) || "";
+      const portfolio: string[] = Array.isArray(d.portfolio)
+        ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
+        : [];
+      const avatarUrl = asString(d.avatarUrl);
       setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl });
     })();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, params, invitedIds, currentUserId]);
 
   if (isAuthenticated === false || isAuthenticated === null) {
     return null;
+  }
+
+  async function sendInvite() {
+    if (!message.trim()) return;
+    try {
+      setIsSending(true);
+      const { data: u } = await supabase.auth.getUser();
+      const me = u?.user?.id ?? null;
+      if (!me || !targetUserId) {
+        alert("Please sign in to send invites.");
+        return;
+      }
+
+      // Try to find an existing conversation between the two users
+      const { data: existingConvo } = await supabase
+        .from("conversations")
+        .select("id")
+        .contains("data", { participantIds: [me, targetUserId] })
+        .maybeSingle();
+
+      let conversationId: string | null = existingConvo?.id ?? null;
+
+      // Create a conversation if none exists
+      if (!conversationId) {
+        const { data: created, error: createErr } = await supabase
+          .from("conversations")
+          .insert({ data: { participantIds: [me, targetUserId] } })
+          .select("id")
+          .single();
+        if (createErr || !created?.id) {
+          alert("Could not start a conversation.");
+          return;
+        }
+        conversationId = created.id;
+      }
+
+      // Insert the invite message
+      const { error: insertErr } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: me,
+        data: { text: message, kind: "invite" },
+      });
+      if (insertErr) {
+        alert("Failed to send invite.");
+        return;
+      }
+
+      // Record a pending connection (idempotent by requester/addressee)
+      await supabase
+        .from("connections")
+        .upsert(
+          {
+            requester_id: me,
+            addressee_id: targetUserId,
+            status: "pending",
+            data: { source: "profiles", initialMessage: message },
+          },
+          { onConflict: "requester_id,addressee_id" }
+        );
+      // Update local invited set and load another profile (remove query param if present)
+      setInvitedIds((prev) => {
+        const next = new Set(prev);
+        if (targetUserId) next.add(targetUserId);
+        return next;
+      });
+      setMessage("Hey, I’d like to connect!");
+      setProfile(null);
+      setTargetUserId(null);
+      // If viewing a specific user via ?user=, navigate to /profiles to trigger fallback selection
+      router.replace("/profiles");
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (
@@ -175,7 +321,11 @@ export default function ProfilesPage() {
               <button className="btn btn-muted rounded-full h-12 px-6" onClick={() => alert('Profile skipped')}>
                 <XCircle className="mr-2 size-4" /> Skip profile
               </button>
-              <button className="btn btn-primary rounded-full h-12 px-6 ml-auto" onClick={() => alert('Invite sent')}>
+              <button
+                className="btn btn-primary rounded-full h-12 px-6 ml-auto"
+                onClick={sendInvite}
+                disabled={isSending}
+              >
                 <Send className="mr-2 size-4" /> Invite to connect
               </button>
             </div>
@@ -190,12 +340,24 @@ export default function ProfilesPage() {
           <button className="btn btn-muted rounded-full h-12 px-6" onClick={() => alert('Profile skipped')}>
             <XCircle className="mr-2 size-4" /> Skip profile
           </button>
-          <button className="btn btn-primary rounded-full h-12 px-6" onClick={() => alert('Invite sent')}>
+          <button
+            className="btn btn-primary rounded-full h-12 px-6"
+            onClick={sendInvite}
+            disabled={isSending}
+          >
             <Send className="mr-2 size-4" /> Invite
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProfilesPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfilesPageInner />
+    </Suspense>
   );
 }
 

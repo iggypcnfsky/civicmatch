@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CheckCheck, Compass, LogOut, Mail, Send, UserRound } from "lucide-react";
-import Logo from "@/components/Logo";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { CheckCheck, Send } from "lucide-react";
 
 type ChatMessage = {
   id: string;
@@ -15,8 +13,7 @@ type ChatMessage = {
 };
 
 export default function MobileChatPage() {
-  const router = useRouter();
-  const { id } = useParams<{ id: string }>();
+  const { id: _id } = useParams<{ id: string }>();
   const [text, setText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "m1", text: "how about redesigning democracy?", isMine: false, time: "09:23" },
@@ -26,10 +23,8 @@ export default function MobileChatPage() {
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const title = useMemo(() => `Conversation ${id}`, [id]);
-
   return (
-    <div className="min-h-dvh p-4 md:p-6 lg:p-8 lg:hidden">
+    <div className="min-h-dvh p-4 md:p-6 lg:p-8 pt-16 lg:hidden">
 
       {/* Messages */}
       <div className="flex-1 p-4 overflow-y-auto pb-24">
@@ -53,7 +48,7 @@ export default function MobileChatPage() {
 
       {/* Composer sticky bottom */}
       <form
-        className="border-t p-3 fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur"
+        className="p-3 fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur"
         onSubmit={(e) => {
           e.preventDefault();
           if (!text.trim()) return;

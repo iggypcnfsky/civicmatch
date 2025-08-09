@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Mail, LogOut, SlidersHorizontal, Bookmark, X, Compass, UserRound, Star } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { SlidersHorizontal, X, Star, Mail } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 
@@ -19,6 +19,7 @@ export default function ExplorePage() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [items, setItems] = useState<Profile[]>([]);
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => {
     try {
@@ -36,13 +37,36 @@ export default function ExplorePage() {
   useEffect(() => {
     setIsAuthenticated(localStorage.getItem("civicmatch.authenticated") === "1");
   }, []);
+  // Load list of profiles the current user has already invited (pending connections)
+  useEffect(() => {
+    (async () => {
+      if (!isAuthenticated) return;
+      const { data: u } = await supabase.auth.getUser();
+      const me = u?.user?.id;
+      if (!me) return;
+      const { data } = await supabase
+        .from("connections")
+        .select("addressee_id")
+        .eq("requester_id", me)
+        .eq("status", "pending");
+      const ids = new Set<string>((data || []).map((r: { addressee_id: string }) => r.addressee_id));
+      setInvitedIds(ids);
+    })();
+  }, [isAuthenticated]);
 
-  function mapRowToProfile(row: any): Profile {
-    const d = row.data || {};
-    const name: string = d.displayName || row.username || "Member";
-    const role: string = Array.isArray(d.skills) && d.skills.length > 0 ? d.skills[0] : "Member";
-    const bio: string = d.bio || "";
-    const avatarUrl: string | undefined = typeof d.avatarUrl === 'string' ? d.avatarUrl : undefined;
+
+  type ProfileRow = { user_id: string; username: string | null; data: unknown; created_at: string };
+
+  const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const asStringArray = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+  function mapRowToProfile(row: ProfileRow): Profile {
+    const d = (row.data ?? {}) as Record<string, unknown>;
+    const name = asString(d["displayName"]) || row.username || "Member";
+    const role = (asStringArray(d["skills"])?.[0]) || "Member";
+    const bio = asString(d["bio"]) || "";
+    const avatarUrl = asString(d["avatarUrl"]);
     return { id: row.user_id, name, role, bio, avatarUrl };
   }
 
@@ -62,8 +86,8 @@ export default function ExplorePage() {
       } else {
         query = query.range(from, to);
       }
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data, error } = (await query) as { data: ProfileRow[] | null; error: unknown };
+      if (error) throw error as Error;
       let mapped = (data ?? []).map(mapRowToProfile);
       if (favoritesOnly) mapped = mapped.filter((p) => favoriteIds.has(p.id));
       setItems((prev) => {
@@ -74,8 +98,7 @@ export default function ExplorePage() {
       });
       setOffset((prev) => prev + (data?.length ?? 0));
       if (!data || data.length < PAGE_SIZE) setHasMore(false);
-    } catch (e) {
-      // noop for MVP; could add toast
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +127,7 @@ export default function ExplorePage() {
     io.observe(el);
     return () => io.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sentinelRef.current, isAuthenticated, isLoading, hasMore]);
+  }, [isAuthenticated, isLoading, hasMore]);
 
   async function ensureProfileForCurrentUser() {
     const { data: userRes } = await supabase.auth.getUser();
@@ -112,16 +135,17 @@ export default function ExplorePage() {
     if (!user) return;
     const username = user.email ?? "";
     if (!username) return;
-    await supabase
+    // Insert only if missing to avoid overwriting existing profile data
+    const { data: existing } = await supabase
       .from("profiles")
-      .upsert(
-        {
-          user_id: user.id,
-          username,
-          data: { email: username },
-        },
-        { onConflict: "user_id" }
-      );
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!existing) {
+      await supabase
+        .from("profiles")
+        .insert({ user_id: user.id, username, data: { email: username } });
+    }
   }
 
   async function handleLogin() {
@@ -134,8 +158,9 @@ export default function ExplorePage() {
       localStorage.setItem("civicmatch.authenticated", "1");
       try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
       setIsAuthenticated(true);
-    } catch (e: any) {
-      setAuthError(e?.message ?? "Authentication failed");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Authentication failed";
+      setAuthError(msg);
     } finally {
       setAuthLoading(false);
     }
@@ -151,8 +176,9 @@ export default function ExplorePage() {
       localStorage.setItem("civicmatch.authenticated", "1");
       try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
       setIsAuthenticated(true);
-    } catch (e: any) {
-      setAuthError(e?.message ?? "Sign up failed");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Sign up failed";
+      setAuthError(msg);
     } finally {
       setAuthLoading(false);
     }
@@ -232,8 +258,11 @@ export default function ExplorePage() {
         <section className="min-w-0">
           <div className="columns-1 sm:columns-2 xl:columns-3 gap-6">
             {items.map((p) => (
-              <article key={p.id} className="mb-6 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm">
-                <Link href="/profiles" className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl">
+              <article
+                key={p.id}
+                className={`mb-6 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm ${invitedIds.has(p.id) ? "opacity-50" : ""}`}
+              >
+                <Link href={`/profiles?user=${encodeURIComponent(p.id)}`} className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl">
                   <div className="relative aspect-[4/3] bg-[color:var(--muted)]/40">
                     {p.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -242,6 +271,12 @@ export default function ExplorePage() {
                     <span className="absolute top-3 left-3 rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-xs">
                       {p.role}
                     </span>
+                    {invitedIds.has(p.id) && (
+                      <span className="absolute top-3 left-3 translate-y-8 rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-[10px] inline-flex items-center gap-1">
+                        <Mail className="size-3" />
+                        Invited
+                      </span>
+                    )}
                     <button
                       className={`absolute top-3 right-3 h-8 w-8 rounded-full border flex items-center justify-center ${favoriteIds.has(p.id) ? "bg-[color:var(--accent)] text-[color:var(--background)] border-transparent" : "bg-[color:var(--background)]/80 border-divider"}`}
                       aria-label="Favorite"

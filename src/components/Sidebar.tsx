@@ -3,17 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Compass,
-  MessageSquareText,
-  UserRound,
-  Users,
-  PanelLeftClose,
-  PanelLeftOpen,
-  UserPlus,
-  LogOut,
-} from "lucide-react";
+import { Compass, MessageSquareText, UserRound, Users, PanelLeftClose, PanelLeftOpen, UserPlus, LogOut } from "lucide-react";
 
 export type NavItem = {
   href: string;

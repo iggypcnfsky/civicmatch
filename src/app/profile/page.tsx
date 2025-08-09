@@ -7,6 +7,22 @@ import { supabase } from "@/lib/supabase/client";
 type AimItem = { title: string; summary: string };
 type CustomSection = { id: string; title: string; content: string };
 
+type ProfileData = {
+  displayName?: string;
+  email?: string;
+  location?: string;
+  tags?: string | string[];
+  bio?: string;
+  links?: string[] | Record<string, unknown>;
+  skills?: string | string[];
+  fame?: string;
+  aim?: AimItem[];
+  game?: string;
+  portfolio?: string[];
+  customSections?: CustomSection[];
+  avatarUrl?: string;
+};
+
 export default function ProfilePage() {
   // Initialize empty so fetched data is not overridden by demo defaults
   const [first, setFirst] = useState("");
@@ -45,22 +61,33 @@ export default function ProfilePage() {
     } as const;
   }
 
-  function applyProfileData(d: any) {
+  function asString(v: unknown): string | undefined { return typeof v === "string" ? v : undefined; }
+  function asStringArray(v: unknown): string[] {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
+    if (typeof v === "string") return v.split(",").map((s) => s.trim()).filter(Boolean);
+    return [];
+  }
+
+  function applyProfileData(d: ProfileData) {
     if (!d) return;
-    setFirst(d.displayName?.split(" ")?.[0] ?? "");
-    setLast(d.displayName?.split(" ").slice(1).join(" ") ?? "");
-    setEmail(d.email ?? "");
-    setLocation(d.location ?? "");
-    setTags(d.tags ?? "");
-    setBio(d.bio ?? "");
-    setLinks(Array.isArray(d.links) ? d.links : []);
-    setSkills(d.skills ?? "");
-    setFame(d.fame ?? "");
+    const display = asString(d.displayName) ?? "";
+    if (display) {
+      setFirst(display.split(" ")?.[0] || "");
+      setLast(display.split(" ").slice(1).join(" ") || "");
+    }
+    setEmail(asString(d.email) ?? "");
+    setLocation(asString(d.location) ?? "");
+    const tagsArray = Array.isArray(d.tags) ? asStringArray(d.tags) : asStringArray(d.tags);
+    setTags(tagsArray.join(", "));
+    setBio(asString(d.bio) ?? "");
+    if (Array.isArray(d.links)) setLinks(asStringArray(d.links));
+    setSkills(asString(d.skills) ?? "");
+    setFame(asString(d.fame) ?? "");
     setAim(Array.isArray(d.aim) ? d.aim : []);
-    setGame(d.game ?? "");
+    setGame(asString(d.game) ?? "");
     setPortfolio(Array.isArray(d.portfolio) ? d.portfolio : []);
     setCustomSections(Array.isArray(d.customSections) ? d.customSections : []);
-    setAvatarUrl(d.avatarUrl ?? "");
+    setAvatarUrl(asString(d.avatarUrl) ?? "");
   }
 
   useEffect(() => {
@@ -83,13 +110,15 @@ export default function ProfilePage() {
             .insert({ user_id: user.id, username, data: { email: username } });
         }
         const { data, error } = await supabase.from("profiles").select("data").eq("user_id", user.id).single();
-        if (!error && data?.data) {
-          applyProfileData(data.data);
+        if (!error && (data?.data as unknown)) {
+          applyProfileData(data.data as ProfileData);
         }
       } finally {
         setLoading(false);
       }
     })();
+    // applyProfileData is stable for our usage
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveAll = async () => {
@@ -120,13 +149,9 @@ export default function ProfilePage() {
       const marker = "/storage/v1/object/public/";
       const idx = u.pathname.indexOf(marker);
       if (idx === -1) return null;
-      const rest = u.pathname.substring(idx + marker.length);
-      const segs = rest.split("/");
-      const bucket = segs.shift() || "";
-      if (!bucket) return null;
-      const path = segs.join("/");
-      if (!path) return null;
-      return { bucket, path };
+      const rest = u.pathname.slice(idx + marker.length);
+      const [bucket, ...pathParts] = rest.split("/");
+      return { bucket, path: pathParts.join("/") };
     } catch {
       return null;
     }
@@ -135,41 +160,15 @@ export default function ProfilePage() {
   async function uploadAvatar(file: File) {
     const { data: userRes } = await supabase.auth.getUser();
     const user = userRes?.user;
-    if (!user) return alert("Not authenticated");
-    const ext = (file.name.split(".").pop() || "png").toLowerCase();
-    const nextPath = `${user.id}/avatar-${Date.now()}.${ext}`;
-    const previous = avatarUrl ? getStorageKeyFromPublicUrl(avatarUrl) : null;
-    const { error: upErr } = await supabase
-      .storage
-      .from("avatars")
-      .upload(nextPath, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
-    if (upErr) return alert(upErr.message);
-    const { data: pub } = supabase.storage.from("avatars").getPublicUrl(nextPath);
-    const url = pub.publicUrl;
-    await saveAvatarUrl(url);
-    if (previous && previous.bucket === "avatars" && previous.path !== nextPath) {
-      await supabase.storage.from("avatars").remove([previous.path]);
-    }
-  }
-
-  async function saveAvatarUrl(url: string) {
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
     if (!user) return;
-    setAvatarUrl(url);
-    const payload = { ...buildProfileData(), avatarUrl: url } as any;
-    await supabase.from("profiles").update({ data: payload }).eq("user_id", user.id);
-  }
-
-  async function removeAvatar() {
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
-    if (!user) return alert("Not authenticated");
-    const prev = avatarUrl ? getStorageKeyFromPublicUrl(avatarUrl) : null;
-    if (prev && prev.bucket === "avatars") {
-      await supabase.storage.from("avatars").remove([prev.path]);
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${user.id}/avatar.${ext}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
+    if (!error) {
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = data.publicUrl;
+      setAvatarUrl(url);
     }
-    await saveAvatarUrl("");
   }
 
   return (
@@ -198,31 +197,17 @@ export default function ProfilePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3 items-start">
               <div className="sm:col-span-1 flex items-center gap-4">
-                <div className="relative w-full">
-                  <div className="w-full aspect-[3/2] rounded-2xl bg-[color:var(--muted)]/40 overflow-hidden border border-divider grid place-items-center">
-                    {avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <Camera className="size-10 opacity-70" />
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (f) await uploadAvatar(f);
-                    }}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button className="btn btn-muted rounded-full" onClick={() => fileInputRef.current?.click()}>Upload / Change</button>
-                  {avatarUrl && (
-                    <button className="btn btn-muted rounded-full" onClick={removeAvatar}>Remove picture</button>
+                <div className="size-16 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center overflow-hidden">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt="Avatar" className="size-16 object-cover" />
+                  ) : (
+                    <Camera className="size-6" />
                   )}
+                </div>
+                <div className="space-x-2">
+                  <button className="btn btn-muted rounded-full" onClick={() => fileInputRef.current?.click()}>Change Picture</button>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
                 </div>
               </div>
               <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
@@ -289,9 +274,7 @@ export default function ProfilePage() {
                 <Lightbulb className="size-4 text-[color:var(--accent)]" />
                 <h2 className="font-semibold">AIM — What I’m Focused On</h2>
               </div>
-              <button className="btn btn-muted" onClick={() => setAim([...aim, { title: "", summary: "" }])}>
-                <Plus className="mr-2 size-4" /> Add item
-              </button>
+              <button className="btn btn-muted" onClick={() => setAim([...aim, { title: "", summary: "" }])}><Plus className="mr-2 size-4" /> Add item</button>
             </header>
             <div className="grid gap-3 sm:grid-cols-2">
               {aim.map((a, i) => (
