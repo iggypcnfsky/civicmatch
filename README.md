@@ -10,9 +10,11 @@ Keep this README in sync with `ARCHITECTURE.md` for deeper technical details.
 
 ### Status
 
-- UI prototype using Next.js App Router and Tailwind CSS v4
-- Demo routes implemented: dashboard (`/`), discover (`/discover`), messages (`/messages`), profile (`/profile`)
-- Static/demo data only; backend integration is planned
+- Next.js App Router + Tailwind CSS v4
+- Supabase integrated for Auth and database reads/writes
+- Explore (`/`) is the default view after login, with infinite scroll fetching from `public.profiles`
+- Auth: email/password and Google Sign‑in (via Supabase OAuth)
+- Routes implemented: Explore (`/`), Profiles (`/profiles`), Messages (`/messages`), My Profile (`/profile`), Discover demo (`/discover`)
 
 ### Objectives and principles
 
@@ -20,12 +22,12 @@ Keep this README in sync with `ARCHITECTURE.md` for deeper technical details.
 
 ## Tech stack
 
-- **Framework**: Next.js 15 (App Router, React 19, TypeScript)
+- **Framework**: Next.js (App Router, React 18+, TypeScript)
 - **Styling**: Tailwind CSS v4 via `@import "tailwindcss"` in `src/app/globals.css`
 - **Icons**: `lucide-react`
-- **Fonts**: Google `DM Sans` via `next/font`
-
-Planned (see `ARCHITECTURE.md`): Supabase (Auth/DB/Realtime/Storage), Zod, React Hook Form, TanStack Query, date-fns, shadcn/ui, `next-themes`.
+- **Dates**: `date-fns`
+- **Auth/DB/Realtime/Storage**: Supabase
+- **Planned**: Zod, React Hook Form, TanStack Query, shadcn/ui, `next-themes`
 
 ## Project structure
 
@@ -36,16 +38,26 @@ civicmatch/
   next.config.ts
   package.json
   postcss.config.mjs
+  supabase/
+    migrations/
+    seed/
   src/
     app/
       globals.css
       layout.tsx
-      page.tsx           # Dashboard
-      discover/page.tsx  # Discover prototype
-      messages/page.tsx  # Messaging prototype
-      profile/page.tsx   # Profile prototype
+      page.tsx            # Explore (default after login)
+      discover/page.tsx   # Discover (demo)
+      profiles/page.tsx   # Public profile view
+      messages/page.tsx   # Conversations list + active thread (desktop split)
+      messages/[id]/page.tsx  # Mobile/full-screen chat
+      profile/page.tsx    # Edit your profile
     components/
-      Sidebar.tsx
+      Logo.tsx
+      TopBar.tsx
+    lib/supabase/
+      client.ts
+    types/
+      supabase.ts
   public/
 ```
 
@@ -53,10 +65,10 @@ civicmatch/
 
 See `ARCHITECTURE.md` for full details. Highlights below:
 
-- **Server‑first rendering**: Use React Server Components where practical; hydrate only interactive areas.
+- **Server‑first rendering**: Prefer RSC for reads; hydrate interactive pieces.
 - **Feature modules**: Auth & onboarding, profiles, matching & search, messaging, connections.
-- **Data layer (planned)**: Supabase for Postgres + Auth + Realtime. Server reads via server client, client mutations via server actions or route handlers.
-- **Messaging design (planned)**: Realtime channels per conversation with optimistic send and reconciliation.
+- **Data layer**: Supabase for Postgres + Auth + Realtime. Client uses `@supabase/supabase-js`.
+- **Messaging design**: Realtime channels per conversation; optimistic send (planned).
 - **Security**: Supabase Auth + strict RLS; clear public vs private profile fields.
 - **Performance**: Route‑level code splitting; streaming RSC for long lists; image optimizations.
 
@@ -67,8 +79,8 @@ Candidate score uses weighted overlap of values, skills, causes, plus optional g
 ## UI system
 
 - **Theme tokens** are declared in `src/app/globals.css` (palette, typography, divider). Example utilities: `.btn`, `.card`, and `border-divider`.
-- **Layout**: `Sidebar` provides primary navigation; pages are composed of small, accessible UI blocks.
-- **Dark mode**: Currently uses `prefers-color-scheme`; planned migration to `next-themes` with `class` strategy.
+- **Global layout**: No sidebar. Sticky `TopBar` in `src/app/layout.tsx` with actions for Explore, Profiles, Messages, Logout, and user chip.
+- **Dark mode**: Planned migration to `next-themes` with `class` strategy.
 
 ## Scripts
 
@@ -95,14 +107,28 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
-Environment variables are not required for the current UI prototype. Planned keys (Supabase path): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+Create `.env.local` and add:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Supabase setup (summary — see `ARCHITECTURE.md` for full details):
+- Enable Google under Authentication → Providers
+- Callback (Supabase, read‑only): `https://gmqbixdqkdllmjiyhdke.supabase.co/auth/v1/callback`
+- Auth → URL Configuration: set Site URL to your production domain; add `http://localhost:3000` to Additional Redirect URLs
+- In Google Cloud Console (OAuth client → Web application):
+  - Authorized JavaScript origins: `http://localhost:3000`, your production domain
+  - Authorized redirect URIs: `https://gmqbixdqkdllmjiyhdke.supabase.co/auth/v1/callback`
 
 ## Routes (current)
 
-- `/` — Dashboard (cards for actions, suggestions, and activity)
-- `/discover` — Rich filter panel and profile preview (demo state)
-- `/messages` — Thread list and chat UI (demo state)
-- `/profile` — Basic profile form (demo state)
+- `/` — Explore (login/register + Google; infinite list of profiles)
+- `/profiles` — Public profile view
+- `/messages` — Conversations list + active thread (desktop split)
+- `/messages/[id]` — Full‑screen chat (mobile)
+- `/profile` — Edit your profile
 
 ## Roadmap (phased)
 
