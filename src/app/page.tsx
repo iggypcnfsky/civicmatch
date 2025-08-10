@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { SlidersHorizontal, X, Star, Mail } from "lucide-react";
+import { SlidersHorizontal, X, Star, Mail, Briefcase, Wrench, MapPin, UsersRound, Clock, UserRound } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 
@@ -36,6 +36,29 @@ export default function ExplorePage() {
 
   useEffect(() => {
     setIsAuthenticated(localStorage.getItem("civicmatch.authenticated") === "1");
+  }, []);
+  // Sync auth state for OAuth redirects and sign-out
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === "SIGNED_IN") {
+        localStorage.setItem("civicmatch.authenticated", "1");
+        try { await ensureProfileForCurrentUser(); } catch {}
+        try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
+        setIsAuthenticated(true);
+      }
+      if (event === "SIGNED_OUT") {
+        localStorage.removeItem("civicmatch.authenticated");
+        setIsAuthenticated(false);
+      }
+    });
+    // If session already exists (e.g., after redirect), mark as authenticated
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session) {
+        localStorage.setItem("civicmatch.authenticated", "1");
+        setIsAuthenticated(true);
+      }
+    });
+    return () => { try { sub.subscription.unsubscribe(); } catch {} };
   }, []);
   // Load list of profiles the current user has already invited (pending connections)
   useEffect(() => {
@@ -135,6 +158,21 @@ export default function ExplorePage() {
     if (!user) return;
     const username = user.email ?? "";
     if (!username) return;
+    const md = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const fullNameCandidates = [
+      typeof md["name"] === "string" ? (md["name"] as string) : undefined,
+      typeof md["full_name"] === "string" ? (md["full_name"] as string) : undefined,
+      [md["given_name"], md["family_name"]]
+        .map((v) => (typeof v === "string" ? v : ""))
+        .filter(Boolean)
+        .join(" ") || undefined,
+    ].filter(Boolean) as string[];
+    const displayName = fullNameCandidates[0] || username.split("@")[0];
+    const avatarUrl = ((): string | undefined => {
+      if (typeof md["picture"] === "string") return md["picture"] as string;
+      if (typeof md["avatar_url"] === "string") return md["avatar_url"] as string;
+      return undefined;
+    })();
     // Insert only if missing to avoid overwriting existing profile data
     const { data: existing } = await supabase
       .from("profiles")
@@ -142,9 +180,10 @@ export default function ExplorePage() {
       .eq("user_id", user.id)
       .maybeSingle();
     if (!existing) {
-      await supabase
-        .from("profiles")
-        .insert({ user_id: user.id, username, data: { email: username } });
+      const data: Record<string, unknown> = { email: username };
+      if (displayName) data.displayName = displayName;
+      if (avatarUrl) data.avatarUrl = avatarUrl;
+      await supabase.from("profiles").insert({ user_id: user.id, username, data });
     }
   }
 
@@ -178,6 +217,26 @@ export default function ExplorePage() {
       setIsAuthenticated(true);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Sign up failed";
+      setAuthError(msg);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleGoogle() {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      });
+      if (error) throw error;
+      // Redirect begins; no further action here
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Google sign-in failed";
       setAuthError(msg);
     } finally {
       setAuthLoading(false);
@@ -226,20 +285,36 @@ export default function ExplorePage() {
               {authError && <div className="text-xs text-red-500">{authError}</div>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                 <button
-                  className="btn btn-primary w-full disabled:opacity-60"
+                  className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
                   disabled={authLoading}
                   onClick={handleLogin}
                 >
                   {authLoading ? "Loading..." : "Log in"}
                 </button>
                 <button
-                  className="btn btn-muted w-full disabled:opacity-60"
+                  className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm disabled:opacity-60"
                   disabled={authLoading}
                   onClick={handleSignup}
                 >
                   {authLoading ? "Loading..." : "Create account"}
                 </button>
               </div>
+              <button
+                className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--background)] hover:bg-[color:var(--muted)]/20 gap-2 text-sm mt-2 disabled:opacity-60"
+                onClick={handleGoogle}
+                disabled={authLoading}
+                aria-label="Continue with Google"
+              >
+                {/* Google Icon SVG */}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                  <path fill="none" d="M0 0h48v48H0z"></path>
+                </svg>
+                <span>Continue with Google</span>
+              </button>
               <div className="text-xs opacity-70 text-center">
                 By continuing you agree to our community guidelines.
               </div>
@@ -251,16 +326,16 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="min-h-dvh p-4 md:p-6 lg:p-8">
+    <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-3 md:pt-4">
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px] items-start">
         {/* Masonry-like grid using CSS columns */}
         <section className="min-w-0">
-          <div className="columns-1 sm:columns-2 xl:columns-3 gap-6">
+          <div className="columns-1 sm:columns-2 xl:columns-3 gap-4">
             {items.map((p) => (
               <article
                 key={p.id}
-                className={`mb-6 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm ${invitedIds.has(p.id) ? "opacity-50" : ""}`}
+                className={`mb-4 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm ${invitedIds.has(p.id) ? "opacity-50" : ""}`}
               >
                 <Link href={`/profiles?user=${encodeURIComponent(p.id)}`} className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl">
                   <div className="relative aspect-[4/3] bg-[color:var(--muted)]/40">
@@ -310,17 +385,17 @@ export default function ExplorePage() {
 
         {/* Sticky filter panel (desktop) */}
         <aside className="hidden lg:block sticky top-20 h-[calc(100dvh-5rem)] overflow-auto">
-          <div className="card space-y-3 rounded-2xl">
+            <div className="card space-y-3 rounded-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[color:var(--accent)]" /><h3 className="font-semibold">Filters</h3></div>
               <button className="text-xs underline opacity-80" onClick={() => alert('Reset filters')}>Reset</button>
             </div>
             <div className="text-xs opacity-80">Tune who you want to meet. These settings affect Explore.</div>
-            <button className="btn btn-muted w-full">Role: Any</button>
-            <button className="btn btn-muted w-full">Distance: Anywhere</button>
-            <button className="btn btn-muted w-full">Skills: Any</button>
+              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Briefcase className="size-4" /> Role: Any</button>
+              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><MapPin className="size-4" /> Distance: Anywhere</button>
+              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Wrench className="size-4" /> Skills: Any</button>
             <button
-              className={`btn w-full ${favoritesOnly ? 'btn-primary' : 'btn-muted'}`}
+              className={`${favoritesOnly ? 'h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
               onClick={() => {
                 const next = !favoritesOnly;
                 setFavoritesOnly(next);
@@ -329,15 +404,15 @@ export default function ExplorePage() {
                 fetchNextPage();
               }}
             >
-              {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
+              <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button className="btn btn-muted w-full">Experience: Any</button>
-              <button className="btn btn-muted w-full">Availability: Any</button>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UserRound className="size-4" /> Experience: Any</button>
+                <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Clock className="size-4" /> Availability: Any</button>
             </div>
-            <button className="btn btn-muted w-full">Collaboration: Any</button>
-            <div className="pt-1 text-xs opacity-70">Changes auto‑save. Use Save to persist across devices.</div>
-            <button className="btn btn-primary w-full">Save Filters</button>
+              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UsersRound className="size-4" /> Collaboration: Any</button>
+              <div className="pt-1 text-xs opacity-70">Changes auto‑save. Use Save to persist across devices.</div>
+              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm">Save Filters</button>
           </div>
         </aside>
       </div>
@@ -364,15 +439,26 @@ export default function ExplorePage() {
               </button>
             </div>
             <div className="text-xs opacity-80">Tune who you want to meet.</div>
-            <button className="btn btn-muted w-full">Role: Any</button>
-            <button className="btn btn-muted w-full">Distance: Anywhere</button>
-            <button className="btn btn-muted w-full">Skills: Any</button>
+            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Briefcase className="size-4" /> Role: Any</button>
+            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><MapPin className="size-4" /> Distance: Anywhere</button>
+            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Wrench className="size-4" /> Skills: Any</button>
+            <button
+              className={`${favoritesOnly ? 'h-12 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
+              onClick={() => {
+                const next = !favoritesOnly;
+                setFavoritesOnly(next);
+                setItems([]); setOffset(0); setHasMore(true);
+                fetchNextPage();
+              }}
+            >
+              <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
+            </button>
             <div className="grid grid-cols-2 gap-2">
-              <button className="btn btn-muted w-full">Experience: Any</button>
-              <button className="btn btn-muted w-full">Availability: Any</button>
+              <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UserRound className="size-4" /> Experience: Any</button>
+              <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Clock className="size-4" /> Availability: Any</button>
             </div>
-            <button className="btn btn-muted w-full">Collaboration: Any</button>
-            <button className="btn btn-primary w-full" onClick={() => setFiltersOpen(false)}>Save Filters</button>
+            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UsersRound className="size-4" /> Collaboration: Any</button>
+            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={() => setFiltersOpen(false)}>Save Filters</button>
           </div>
         </div>
       )}

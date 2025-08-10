@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { Briefcase, Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle } from "lucide-react";
+import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -19,6 +19,8 @@ type ViewProfile = {
   game: string;
   portfolio: string[];
   avatarUrl?: string;
+  workStyle?: string;
+  helpNeeded?: string;
 };
 
 function ProfilesPageInner() {
@@ -59,6 +61,33 @@ function ProfilesPageInner() {
       if (city && country) return `${city}, ${country}`;
     }
     return "";
+  };
+
+  const normalizeUrl = (url: string): string => {
+    if (!url) return "";
+    const trimmed = url.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
+  const renderWithLinks = (text: string | undefined) => {
+    if (!text) return null;
+    const parts = text.split(/(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi);
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (/^(https?:\/\/|www\.)/i.test(part)) {
+            const href = normalizeUrl(part);
+            return (
+              <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] hover:underline break-words">
+                {part}
+              </a>
+            );
+          }
+          return <span key={i}>{part}</span>;
+        })}
+      </>
+    );
   };
 
   // Load invited (pending) connections for current user to avoid showing already-invited profiles
@@ -106,7 +135,9 @@ function ProfilesPageInner() {
             ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
             : [];
           const avatarUrl = asString(d.avatarUrl);
-          setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl });
+          const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
+          const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
+          setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
           return;
         }
       }
@@ -145,7 +176,9 @@ function ProfilesPageInner() {
         ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
         : [];
       const avatarUrl = asString(d.avatarUrl);
-      setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl });
+      const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
+      const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
+      setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
     })();
   }, [isAuthenticated, params, invitedIds, currentUserId]);
 
@@ -226,8 +259,15 @@ function ProfilesPageInner() {
     }
   }
 
+  function skipProfile() {
+    setProfile(null);
+    setTargetUserId(null);
+    // Force a params change to retrigger the loader effect
+    router.replace(`/profiles?refresh=${Date.now()}`);
+  }
+
   return (
-    <div className="min-h-dvh p-4 md:p-6 lg:p-8">
+    <div className="min-h-dvh p-4 md:p-6 lg:p-8 pb-52 lg:pb-0">
       {/* Content */}
       <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
         {/* Left: profile sections */}
@@ -235,14 +275,14 @@ function ProfilesPageInner() {
           {/* NAME: image (full) + basic info */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {/* Image full-bleed panel */}
-            <div className="card p-0 overflow-hidden md:col-span-1 relative">
-              <div className="relative aspect-[2/3] md:max-h-[360px] bg-[color:var(--muted)]/40">
-                {profile?.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.avatarUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
-                ) : null}
-                <div className="absolute bottom-3 left-3 text-lg md:text-xl font-semibold px-2.5 py-1.5 rounded bg-[color:var(--background)]/85 border border-divider">{profile?.name ?? ""}</div>
-              </div>
+            <div className="card p-0 overflow-hidden md:col-span-1 relative h-[400px]">
+              {profile?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatarUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 bg-[color:var(--muted)]/40" />
+              )}
+              <div className="absolute bottom-3 left-3 text-lg md:text-xl font-semibold px-2.5 py-1.5 rounded bg-[color:var(--background)]/85 border border-divider">{profile?.name ?? ""}</div>
             </div>
             {/* Basic info */}
             <div className="card p-4 md:col-span-2 space-y-3">
@@ -256,18 +296,26 @@ function ProfilesPageInner() {
                 {profile?.bio || ""}
               </p>
               <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                {(profile?.links ?? []).slice(0,2).map((l, i) => (
-                  <div key={i} className="flex items-center gap-2"><LinkIcon className="size-4 opacity-70" /> {l}</div>
+                {(profile?.links ?? []).slice(0, 2).map((l, i) => (
+                  <a
+                    key={i}
+                    className="flex items-center gap-2 hover:underline break-words"
+                    href={normalizeUrl(l)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <LinkIcon className="size-4 opacity-70" /> {l}
+                  </a>
                 ))}
               </div>
             </div>
           </div>
 
           {/* SAME / FAME / AIM / GAME / Custom portfolio */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
             {/* SAME */}
-            <section className="card space-y-3">
-              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">SAME — Skills & What I Do</h2></header>
+            <section className="card space-y-3 h-full flex flex-col min-h-[200px]">
+              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
               <div className="flex flex-wrap gap-2 text-sm">
                 {(profile?.skills ?? []).map((s) => (
                   <span key={s} className="px-3 py-1 rounded-full border border-divider">{s}</span>
@@ -276,14 +324,14 @@ function ProfilesPageInner() {
             </section>
 
             {/* FAME */}
-            <section className="card space-y-3">
-              <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">FAME — What I’m Known For</h2></header>
-              <p className="text-sm">{profile?.fame || ""}</p>
+            <section className="card space-y-3 h-full flex flex-col">
+              <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Known For</h2></header>
+              <p className="text-sm">{renderWithLinks(profile?.fame) }</p>
             </section>
 
             {/* AIM */}
-            <section className="card space-y-3">
-              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">AIM — What I’m Focused On</h2></header>
+            <section className="card space-y-3 h-full flex flex-col">
+              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Focused On</h2></header>
               <div className="grid gap-3 sm:grid-cols-2">
                 {(profile?.aim ?? []).slice(0,2).map((a, i) => (
                   <div key={i} className="rounded-lg border p-3">
@@ -295,19 +343,21 @@ function ProfilesPageInner() {
             </section>
 
             {/* GAME */}
-            <section className="card space-y-3">
-              <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">GAME — Long‑term Strategy</h2></header>
-              <p className="text-sm">{profile?.game || ""}</p>
+            <section className="card space-y-3 h-full flex flex-col">
+              <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
+              <p className="text-sm">{renderWithLinks(profile?.game)}</p>
             </section>
 
-            {/* Custom portfolio */}
-            <section className="card space-y-3 sm:col-span-2 lg:col-span-3">
-              <header className="flex items-center gap-2"><Briefcase className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Portfolio</h2></header>
-              <div className="grid gap-3 md:grid-cols-3">
-                {Array.from({ length: Math.max(3, (profile?.portfolio?.length ?? 0)) }).map((_, i) => (
-                  <div key={i} className="rounded-lg border aspect-[4/3] bg-[color:var(--muted)]/40" />
-                ))}
-              </div>
+            {/* Work Style */}
+            <section className="card space-y-3 h-full flex flex-col">
+              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
+              <p className="text-sm">{renderWithLinks(profile?.workStyle)}</p>
+            </section>
+
+            {/* What do I need help with */}
+            <section className="card space-y-3 h-full flex flex-col">
+              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
+              <p className="text-sm">{renderWithLinks(profile?.helpNeeded)}</p>
             </section>
           </div>
         </section>
@@ -318,15 +368,20 @@ function ProfilesPageInner() {
             <div className="font-semibold">Invite to connect</div>
             <textarea className="w-full flex-1 min-h-[160px] rounded-2xl border bg-transparent p-3 text-sm resize-none" value={message} onChange={(e) => setMessage(e.target.value)} />
             <div className="mt-auto flex items-center gap-2">
-              <button className="btn btn-muted rounded-full h-12 px-6" onClick={() => alert('Profile skipped')}>
-                <XCircle className="mr-2 size-4" /> Skip profile
+              <button
+                className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
+                onClick={skipProfile}
+              >
+                <XCircle className="size-4" />
+                <span className="hidden md:inline">Skip profile</span>
               </button>
               <button
-                className="btn btn-primary rounded-full h-12 px-6 ml-auto"
+                className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm ml-auto"
                 onClick={sendInvite}
                 disabled={isSending}
               >
-                <Send className="mr-2 size-4" /> Invite to connect
+                <Send className="size-4" />
+                <span className="hidden md:inline">Invite to connect</span>
               </button>
             </div>
           </div>
@@ -337,15 +392,18 @@ function ProfilesPageInner() {
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t">
         <textarea className="w-full rounded-lg border bg-transparent p-3 text-sm" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} />
         <div className="mt-2 flex items-center justify-between gap-2">
-          <button className="btn btn-muted rounded-full h-12 px-6" onClick={() => alert('Profile skipped')}>
-            <XCircle className="mr-2 size-4" /> Skip profile
+          <button
+            className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
+            onClick={skipProfile}
+          >
+            <XCircle className="size-4" /> Skip profile
           </button>
           <button
-            className="btn btn-primary rounded-full h-12 px-6"
+            className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm"
             onClick={sendInvite}
             disabled={isSending}
           >
-            <Send className="mr-2 size-4" /> Invite
+            <Send className="size-4" /> Invite
           </button>
         </div>
       </div>

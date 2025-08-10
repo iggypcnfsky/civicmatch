@@ -99,61 +99,61 @@ export default function MessagesPage() {
   }, [currentId, userId]);
 
   return (
-    <div className="min-h-dvh p-4 pt-16 md:pt-20 md:p-6 lg:p-8">
+    <div className="min-h-dvh p-3 pt-14 md:pt-18 md:p-4 lg:p-6">
       {/* Content: split layout on desktop (1/3–2/3), list-first on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] min-h-[calc(100dvh-5rem)] lg:pt-3">
       {/* Threads list */}
-      <aside className="p-2 space-y-3 lg:max-w-[520px] flex flex-col overflow-hidden">
-        {/* Search (separated from list, no outline panel) */}
-        <div className="px-3 py-2">
-          <div className="relative">
-            <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />
-            <input className="w-full rounded-full border bg-transparent py-1.5 pl-9 pr-3 text-sm" placeholder="Search conversations" />
+      <aside className="lg:max-w-[520px] flex flex-col">
+        <div className="card p-0 h-full flex flex-col overflow-hidden">
+          {/* Search */}
+          <div className="p-3 border-b border-divider">
+            <div className="relative">
+              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />
+              <input className="w-full rounded-full border bg-transparent py-2 pl-9 pr-3 text-sm" placeholder="Search conversations" />
+            </div>
           </div>
-        </div>
-        {/* Conversations */}
-        <div className="flex-1 overflow-auto">
-          <div className="divide-y divide-divider">
-          {threads.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                if (typeof window !== "undefined" && window.innerWidth < 1024) {
-                  router.push(`/messages/${t.id}`);
-                } else {
-                  setCurrentId(t.id);
-                }
-              }}
-              className={`w-full flex items-start gap-3 px-3 py-2 text-left transition-colors rounded-xl ${
-                currentId === t.id
-                  ? "bg-[color:var(--muted)]/25 border-l-2 border-[color:var(--accent)]"
-                  : "hover:bg-[color:var(--muted)]/15"
-              }`}
-            >
-              <div className="relative">
-                <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
-                  {t.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={t.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : null}
+          {/* Conversations */}
+          <div className="flex-1 overflow-auto">
+            {threads.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                    router.push(`/messages/${t.id}`);
+                  } else {
+                    setCurrentId(t.id);
+                  }
+                }}
+                className={`w-full flex items-start gap-3 px-3 py-2 text-left transition-colors ${
+                  currentId === t.id
+                    ? "bg-[color:var(--muted)]/20"
+                    : "hover:bg-[color:var(--muted)]/10"
+                }`}
+              >
+                <div className="relative">
+                  <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
+                    {t.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium truncate">{t.name}</span>
-                  <span className="text-xs opacity-60 whitespace-nowrap">{new Date(t.updatedAt).toLocaleDateString()}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium truncate">{t.name}</span>
+                    <span className="text-xs opacity-60 whitespace-nowrap">{new Date(t.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="text-xs opacity-80 truncate">{t.lastPreview || ""}</div>
                 </div>
-                <div className="text-xs opacity-80 truncate">{t.lastPreview || ""}</div>
-              </div>
-            </button>
-          ))}
+              </button>
+            ))}
           </div>
         </div>
       </aside>
 
       {/* Active thread */}
-      <section className="hidden lg:flex flex-col">
-        <header className="p-3 flex items-center justify-between">
+      <section className="hidden lg:flex flex-col card p-0 overflow-hidden">
+        <header className="p-3 flex items-center justify-between border-b border-divider">
           <div className="flex items-center gap-3 min-w-0">
             <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
               {threads.find((t) => t.id === currentId)?.avatarUrl ? (
@@ -172,8 +172,8 @@ export default function MessagesPage() {
         </header>
 
         {/* Messages list */}
-        <div className="flex-1 p-4 overflow-y-auto pb-24 md:pb-0">
-          <div className="mx-auto max-w-3xl space-y-2">
+        <div className="flex-1 p-2 md:p-3 overflow-y-auto">
+          <div className="w-full space-y-2">
             {messages.map((m, idx) => (
               <div key={m.id} className={`flex ${m.isMine ? "justify-end" : "justify-start"}`}>
                 <div
@@ -181,7 +181,7 @@ export default function MessagesPage() {
                     m.isMine
                       ? "bg-[color:var(--accent)] text-[color:var(--background)]"
                       : "bg-[color:var(--muted)]/30"
-                  } max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm`}
+                  } max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm`}
                 >
                   <div>{m.text}</div>
                   <div className={`mt-1 flex items-center gap-1 text-[10px] ${m.isMine ? "opacity-90" : "opacity-60"}`}>
@@ -199,7 +199,7 @@ export default function MessagesPage() {
 
         {/* Composer (fixed on mobile, static on md+) */}
         <form
-          className="p-3 flex items-end gap-2 md:static fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur md:bg-transparent"
+          className="p-3 flex items-end gap-2 md:static fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur md:bg-transparent border-t border-divider"
           onSubmit={(e) => {
             e.preventDefault();
             if (!text.trim()) return;
@@ -221,7 +221,7 @@ export default function MessagesPage() {
             rows={2}
             className="flex-1 rounded-2xl border bg-transparent px-3 py-3 text-sm resize-none"
           />
-          <button type="submit" className="btn btn-primary rounded-full h-12 px-6"
+          <button type="submit" className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm"
             onClick={async (e) => {
               e.preventDefault();
               if (!text.trim() || !currentId || !userId) return;
@@ -240,7 +240,7 @@ export default function MessagesPage() {
               setTimeout(scrollToEnd, 50);
             }}
           >
-            <Send className="mr-2 size-4" /> Send
+            <Send className="size-4" /> Send
           </button>
         </form>
       </section>

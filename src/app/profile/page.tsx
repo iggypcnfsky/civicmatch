@@ -21,6 +21,8 @@ type ProfileData = {
   portfolio?: string[];
   customSections?: CustomSection[];
   avatarUrl?: string;
+  workStyle?: string;
+  helpNeeded?: string;
 };
 
 export default function ProfilePage() {
@@ -39,6 +41,9 @@ export default function ProfilePage() {
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [customSections, setCustomSections] = useState<CustomSection[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [aimSingle, setAimSingle] = useState<string>("");
+  const [workStyle, setWorkStyle] = useState<string>("");
+  const [helpNeeded, setHelpNeeded] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -53,11 +58,13 @@ export default function ProfilePage() {
       links,
       skills,
       fame,
-      aim,
+      aim: aimSingle ? [{ title: aimSingle, summary: "" }] : [],
       game,
       portfolio,
       customSections,
       avatarUrl,
+      workStyle,
+      helpNeeded,
     } as const;
   }
 
@@ -84,10 +91,13 @@ export default function ProfilePage() {
     setSkills(asString(d.skills) ?? "");
     setFame(asString(d.fame) ?? "");
     setAim(Array.isArray(d.aim) ? d.aim : []);
+    setAimSingle(Array.isArray(d.aim) && d.aim.length > 0 ? (d.aim[0]?.title || "") : "");
     setGame(asString(d.game) ?? "");
     setPortfolio(Array.isArray(d.portfolio) ? d.portfolio : []);
     setCustomSections(Array.isArray(d.customSections) ? d.customSections : []);
     setAvatarUrl(asString(d.avatarUrl) ?? "");
+    setWorkStyle(asString((d as ProfileData).workStyle) ?? "");
+    setHelpNeeded(asString((d as ProfileData).helpNeeded) ?? "");
   }
 
   useEffect(() => {
@@ -176,15 +186,17 @@ export default function ProfilePage() {
       <header className="flex items-center gap-2">
         <UserRound className="size-5 text-[color:var(--accent)]" />
         <h1 className="text-2xl font-bold">Edit Profile</h1>
-        <button className="ml-auto btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll} disabled={loading}>
-          <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
-        </button>
-        <button
-          className="btn btn-muted rounded-full hidden md:inline-flex"
-          onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
-        >
-          <LogOut className="mr-2 size-4" /> Logout
-        </button>
+        <div className="hidden md:flex items-center gap-2 ml-auto">
+          <button className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={saveAll} disabled={loading}>
+            <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
+          </button>
+          <button
+            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+            onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
+          >
+            <LogOut className="mr-2 size-4" /> Logout
+          </button>
+        </div>
       </header>
 
       <div className="space-y-4">
@@ -197,18 +209,21 @@ export default function ProfilePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3 items-start">
               <div className="sm:col-span-1 flex items-center gap-4">
-                <div className="size-16 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center overflow-hidden">
+                <div className="size-24 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center overflow-hidden">
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="Avatar" className="size-16 object-cover" />
+                    <img src={avatarUrl} alt="Avatar" className="size-24 object-cover" />
                   ) : (
                     <Camera className="size-6" />
                   )}
                 </div>
-                <div className="space-x-2">
-                  <button className="btn btn-muted rounded-full" onClick={() => fileInputRef.current?.click()}>Change Picture</button>
-                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
-                </div>
+                <button
+                  className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Camera className="mr-2 size-4" /> Change Picture
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
               </div>
               <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
                 <div>
@@ -248,94 +263,108 @@ export default function ProfilePage() {
                         <button className="btn btn-muted" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
                       </div>
                     ))}
-                    <button className="btn btn-muted" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
+                    <button className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* SAME */}
-          <section id="same" className="card space-y-3">
-            <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">SAME — Skills & What I Do</h2></header>
-            <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={skills} onChange={(e) => setSkills(e.target.value)} />
+          {/* Skills & What I Do */}
+          <section id="skills" className="card space-y-3 min-h-[200px]">
+            <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
+            <textarea
+              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              rows={3}
+              placeholder="List your core skills or roles (e.g., Full‑stack engineer, Product manager)"
+              value={skills}
+              onChange={(e) => setSkills(e.target.value)}
+            />
           </section>
 
-          {/* FAME */}
+          {/* What I'm Known For */}
           <section id="fame" className="card space-y-3">
-            <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">FAME — What I’m Known For</h2></header>
-            <textarea className="w-full rounded-lg border bg-transparent px-3 py-2" rows={3} value={fame} onChange={(e) => setFame(e.target.value)} />
+            <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Known For</h2></header>
+            <textarea
+              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              rows={3}
+              placeholder="What are you known for? (e.g., Led open‑data initiative in my city; ex‑Google PM)"
+              value={fame}
+              onChange={(e) => setFame(e.target.value)}
+            />
           </section>
 
-          {/* AIM */}
+          {/* What I'm Focused On */}
           <section id="aim" className="card space-y-3">
-            <header className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Lightbulb className="size-4 text-[color:var(--accent)]" />
-                <h2 className="font-semibold">AIM — What I’m Focused On</h2>
-              </div>
-              <button className="btn btn-muted" onClick={() => setAim([...aim, { title: "", summary: "" }])}><Plus className="mr-2 size-4" /> Add item</button>
-            </header>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {aim.map((a, i) => (
-                <div key={i} className="rounded-lg border p-3 space-y-2">
-                  <input className="w-full rounded-lg border bg-transparent px-3 py-2" placeholder="Title" value={a.title} onChange={(e) => setAim(aim.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))} />
-                  <input className="w-full rounded-lg border bg-transparent px-3 py-2" placeholder="Summary" value={a.summary} onChange={(e) => setAim(aim.map((x, idx) => idx === i ? { ...x, summary: e.target.value } : x))} />
-                  <div className="flex justify-end">
-                    <button className="btn btn-muted" onClick={() => setAim(aim.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Focused On</h2></header>
+            <textarea
+              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              rows={3}
+              placeholder="What are you focusing on in the next 3–6 months? (e.g., Building MVP for civic engagement app)"
+              value={aimSingle}
+              onChange={(e) => setAimSingle(e.target.value)}
+            />
           </section>
 
-          {/* GAME */}
+          {/* Long-term Strategy */}
           <section id="game" className="card space-y-3">
-            <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">GAME — Long‑term Strategy</h2></header>
-            <textarea className="w-full rounded-lg border bg-transparent px-3 py-2" rows={3} value={game} onChange={(e) => setGame(e.target.value)} />
+            <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
+            <textarea
+              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              rows={3}
+              placeholder="What’s your long‑term vision? (e.g., Launch a public‑interest tech cooperative)"
+              value={game}
+              onChange={(e) => setGame(e.target.value)}
+            />
           </section>
 
-          {/* Portfolio */}
-          <section id="portfolio" className="card space-y-3">
-            <header className="flex items-center gap-2"><UserRound className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Portfolio</h2></header>
-            <div className="space-y-2">
-              {portfolio.map((u, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <LinkIcon className="size-4 opacity-70" />
-                  <input className="flex-1 rounded-lg border bg-transparent px-3 py-2" value={u} onChange={(e) => setPortfolio(portfolio.map((x, idx) => idx === i ? e.target.value : x))} />
-                  <button className="btn btn-muted" onClick={() => setPortfolio(portfolio.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
-                </div>
-              ))}
-              <button className="btn btn-muted" onClick={() => setPortfolio([...portfolio, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
-            </div>
+          {/* Work Style */}
+          <section id="work-style" className="card space-y-3">
+            <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
+            <textarea
+              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              rows={3}
+              placeholder="How do you like to work? (e.g., Remote async, weekly check‑ins, prefers rapid prototyping)"
+              value={workStyle}
+              onChange={(e) => setWorkStyle(e.target.value)}
+            />
           </section>
 
-          {/* Custom sections */}
-          {customSections.map((s, idx) => (
-            <section key={s.id} className="card space-y-3">
-              <header className="flex items-center justify-between">
-                <input className="w-full rounded-lg border bg-transparent px-3 py-2 font-semibold" value={s.title} onChange={(e) => setCustomSections(customSections.map((x, i) => i === idx ? { ...x, title: e.target.value } : x))} />
-                <button className="btn btn-muted" onClick={() => setCustomSections(customSections.filter((_, i) => i !== idx))}><Trash2 className="size-4" /></button>
-              </header>
-              <textarea className="w-full rounded-lg border bg-transparent px-3 py-2" rows={3} value={s.content} onChange={(e) => setCustomSections(customSections.map((x, i) => i === idx ? { ...x, content: e.target.value } : x))} />
-            </section>
-          ))}
+          {/* What do I need help with */}
+          <section id="help-needed" className="card space-y-3">
+            <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
+            <textarea
+              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              rows={3}
+              placeholder="What help do you need? (e.g., Designer to shape UX; Intro to city data portal)"
+              value={helpNeeded}
+              onChange={(e) => setHelpNeeded(e.target.value)}
+            />
+          </section>
 
-          <div className="flex items-center justify-between">
-            <button className="btn btn-muted rounded-full" onClick={() => setCustomSections([...customSections, { id: crypto.randomUUID(), title: "New section", content: "" }])}>
-              <Plus className="mr-2 size-4" /> Add new section
-            </button>
-            <button className="btn btn-primary rounded-full hidden md:inline-flex" onClick={saveAll} disabled={loading}>
-              <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save changes"}
-            </button>
-          </div>
+          {/* Portfolio removed per new design */}
+
+          {/* Custom sections removed per new design */}
+
+          {/* Bottom action row removed (duplicate on mobile; desktop Save remains in header) */}
         </section>
       </div>
 
       {/* Sticky mobile save bar */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t space-y-2">
-        <button className="btn btn-primary w-full rounded-full h-12" onClick={saveAll} disabled={loading}><Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}</button>
-        <button className="btn btn-muted w-full rounded-full h-12" onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}><LogOut className="mr-2 size-4" /> Logout</button>
+        <button
+          className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
+          onClick={saveAll}
+          disabled={loading}
+        >
+          <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
+        </button>
+        <button
+          className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+          onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
+        >
+          <LogOut className="mr-2 size-4" /> Logout
+        </button>
       </div>
     </div>
   );

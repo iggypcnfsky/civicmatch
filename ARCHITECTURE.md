@@ -91,6 +91,14 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
 - **Responsiveness**: mobile‑first; critical layouts use `grid`/`flex` with safe fallbacks
 - **A11y**: keyboard focus states, Radix primitives, color contrast ≥ 4.5:1
 
+### Button & pill system
+- Unified pill styling across the app (TopBar, Explore, Profiles, Messages, My Profile):
+  - Base: `h-10 inline-flex items-center justify-center rounded-full`
+  - Primary: `border-transparent bg-[color:var(--accent)] text-[color:var(--background)]`
+  - Muted: `border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30`
+  - Mobile emphasis: larger variants (e.g., `h-12`) where tap targets need to be bigger
+- Icon-only pills on mobile where space is constrained (e.g., Send in chat)
+
 ### Global layout
 - No sidebar anywhere in the app
 - Sticky global top bar provided by `TopBar` and rendered from `app/layout.tsx` (single source of truth)
@@ -101,8 +109,8 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
 ### Explore view
 - Default view after login at `/`
 - Masonry grid of profile cards (CSS columns) with infinite loading using `IntersectionObserver`
-- Desktop: sticky filter panel on the right; offset so it sits below the sticky top bar
-- Mobile: sticky bottom "Filters" pill that opens a bottom‑sheet modal with the same controls; hamburger menu removed
+- Desktop: sticky filter panel on the right with pill‑styled controls (each with Lucide icon); Favorites toggle uses accent‑filled pill when active. Offset below the sticky top bar
+- Mobile: sticky bottom "Filters" pill that opens a bottom‑sheet with larger (h‑12) pill controls, including a Favorites toggle; hamburger removed
 - Profile cards: rounded corners, subtle shadow, role badge and save control; show name + short bio
 - Clicking a profile card navigates to the Profiles view (`/profiles`) to show a full profile
 
@@ -133,21 +141,27 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
   - Combine with keyset/offset; keep page size fixed (24) and pass filters to API to compute `nextCursor` consistently.
 ### Profiles view
 - Uses the same global top bar
-- Left column shows a flexible grid of panels (no fixed 1/3 or 2/3 rules):
-  - NAME: full‑bleed image panel with large name label at the bottom‑left; adjacent card with location, timezone, tags, social links, and in‑depth bio
-  - SAME: skills and “what I do” with chips
-  - FAME: what the person is known for (unique achievements)
-  - AIM: current focus with sub‑panels for projects/ideas
-  - GAME: long‑term strategy
-  - Custom panels like portfolio
+- Left column shows a flexible grid of panels (no fixed 1/3 or 2/3 rules). Titles drop legacy prefixes for clarity. Panels:
+  - NAME: full‑bleed image (object‑cover, fixed 400px height) with name label; adjacent basic info (location, tags, bio, links)
+  - Skills & What I Do (chips)
+  - What I’m Known For (auto‑links URLs)
+  - What I’m Focused On
+  - Long‑term Strategy
+  - Work Style (new)
+  - What do I need help with (new)
+  - Portfolio removed for MVP
+- Consistent sizing via flexible grid (`auto-rows-fr`) and panel `min-height` where needed.
+- Right column: sticky Invite composer with pill Skip/Invite; Skip loads another profile instead of alerting.
+- Mobile: bottom composer; extra bottom padding prevents the last panel from being obscured.
 - Desktop: right column hosts a sticky Invite composer panel sized to half the viewport height; pill‑shaped Skip and Invite buttons with icons
 - Mobile: bottom fixed composer with full‑width textarea; pill‑shaped buttons below (Skip left, Invite right)
 
 ### My Profile (edit) view
-- Mirrors public profile panels (NAME/basic, SAME, FAME, AIM, GAME, Portfolio) but all fields are editable
-- Add/Remove items where relevant (links, AIM cards, portfolio links)
-- Add New Section for custom content blocks
-- Save persists to Supabase `public.profiles.data` (JSONB) and also stores a local draft for instant UX; desktop Save in header; mobile has a sticky bottom Save bar
+- Mirrors public profile panels with one input per panel. Panels: Basics, Skills & What I Do, What I’m Known For, What I’m Focused On (mapped to first AIM item), Long‑term Strategy, Work Style, What do I need help with.
+- Portfolio and Custom Sections removed.
+- Inputs include helpful placeholders with guidance and examples.
+- Buttons follow the pill system; Basics actions like “Change Picture” and “Add link” are muted pill buttons with icons.
+- Desktop: header Save/Logout as pills (extra horizontal padding). Mobile: header actions hidden; sticky bottom Save/Logout pills.
 
 ## Routing & structure (App Router)
 
@@ -266,9 +280,57 @@ Automation (using MCP Supabase tools):
 - **Auth wiring**: Explore page (`/`) login/register form uses Supabase Auth (email/password). After auth, an `ensureProfile` step upserts into `public.profiles` with `user_id`, `username = email`, and a starter `data` payload.
 - **Profile editing**: `profile/page.tsx` loads `public.profiles.data` for the current user and updates it on Save. Logout calls `supabase.auth.signOut()`.
 
+### Google Sign‑in (Supabase) — integration plan
+
+- **Provider setup (Supabase Dashboard)**
+  - Enable Google under Authentication → Providers.
+  - Callback URL (read‑only in Supabase): `https://gmqbixdqkdllmjiyhdke.supabase.co/auth/v1/callback`.
+  - Auth → URL Configuration:
+    - Site URL: your production app domain (e.g., `https://app.example.com`).
+    - Additional Redirect URLs: add `http://localhost:3000` for local dev (and any other preview URLs if used).
+
+- **Google Cloud Console (OAuth client → Web application)**
+  - Authorized JavaScript origins:
+    - `http://localhost:3000`
+    - `https://app.example.com` (replace with your production domain)
+  - Authorized redirect URIs:
+    - `https://gmqbixdqkdllmjiyhdke.supabase.co/auth/v1/callback` (exact match)
+  - Note: Do not put your app origin here. Supabase (GoTrue) is the OAuth client and must be the redirect URI. After Supabase completes the callback, it redirects the browser back to your app origin (configured via `redirectTo` and Supabase Auth URL settings).
+  - Common error: `redirect_uri_mismatch` — ensure the redirect URI in Google exactly equals `https://gmqbixdqkdllmjiyhdke.supabase.co/auth/v1/callback` with no trailing slashes or extra paths.
+
+- **Environment**
+  - Already using `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. No extra env vars are required for Google OAuth on the client.
+
+- **Client flow changes (`src/app/page.tsx`)**
+  - Add a "Continue with Google" pill button alongside email/password.
+  - On click, call:
+    - `await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })` (redirect flow; no custom route needed).
+  - On mount, register an auth listener to sync local state and profile after OAuth redirect:
+    - `supabase.auth.onAuthStateChange((event) => { if (event === 'SIGNED_IN') { localStorage.setItem('civicmatch.authenticated','1'); ensureProfileForCurrentUser(); try { window.dispatchEvent(new Event('civicmatch:auth-changed')); } catch {} } })`.
+  - Also check `supabase.auth.getSession()` on mount to set the initial authenticated state if a session already exists (covers refresh and return from OAuth).
+  - `ensureProfileForCurrentUser()` upserts on first sign‑in and bootstraps profile data from Google metadata:
+    - Map `user.user_metadata.name` → `profiles.data.displayName` (fallback to `full_name` or `given_name + family_name`, else email prefix).
+    - Map `user.user_metadata.picture` → `profiles.data.avatarUrl` (fallback to `avatar_url` if present).
+    - Always set `profiles.data.email` to the user email.
+
+- **Routing/redirect behavior**
+  - Supabase handles the hosted callback and returns the browser to the originating app URL; no Next.js route is required.
+  - Ensure your site URLs are listed in Supabase Auth → URL Configuration so redirects succeed.
+
+- **UI/UX**
+  - Use the same pill system. Label: "Continue with Google"; optional Google icon from `public/`.
+  - Button remains disabled while the redirect call is in progress.
+
+- **Testing**
+  - Local: with `NEXT_PUBLIC_SUPABASE_*` set, click Google, complete consent, verify you return authenticated; confirm Explore loads and a `profiles` row exists.
+  - Prod: add prod domain to redirect URLs; repeat test.
+
+- **Non‑goals (now)**
+  - No custom OAuth callback route; no server actions for OAuth; no multi‑provider account linking.
+
 ### Auth & profile lifecycle
 1. User signs up or logs in on `/` using email/password via Supabase Auth.
-2. On success, app upserts `public.profiles` with `user_id` and `username = email` (unique), plus `data.email`.
+2. On success, app upserts `public.profiles` with `user_id` and `username = email` (unique), plus `data.email`. If available from Google, also set `data.displayName` and `data.avatarUrl` during the initial insert (existing rows are not overwritten).
 3. Navigating to `/profile` loads `profiles.data` for the current user and binds it to the edit form.
 4. Clicking Save updates `profiles.data` (JSONB). Local draft remains for resilience.
 5. Logout signs out via Supabase and clears local flags.
@@ -470,10 +532,9 @@ Example `data` payloads
 - **Backpressure**: simple rate limit on send; text size cap
 
 ### Messaging UI
-- Desktop: split layout (approx 1/3 list, 2/3 chat). Left list has a sticky "Search conversations" input; active item has a subtle left accent
-- Mobile: list‑first at `/messages`; navigating a thread opens `/messages/[id]` as a full‑screen chat
-- Chat header shows name and a short "About" line for context; removed call/video/"We met" actions for MVP
-- Composer: larger textarea with pill Send button; fixed at bottom on mobile, inline on desktop
+- Desktop: split layout in cards with bordered search header; item hover/active background; no left accent bar
+- Mobile: full‑screen chat includes header with avatar, name, and about
+- Composer: textarea + pill Send button; icon‑only pill on mobile; bubbles left/right aligned with tighter paddings
 
 ## Security & privacy
 
