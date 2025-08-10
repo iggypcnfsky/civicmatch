@@ -569,6 +569,38 @@ Example `data` payloads
 - `.env.local` for local dev, `.env` for CI; never commit secrets
 - Key variables (Supabase path): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, service role for migrations only
 
+## PWA (MVP) plan
+
+- **Goals**: installable app, basic offline support for shell and recent pages, proper icons/splash, Lighthouse PWA pass. Keep code changes minimal.
+- **Approach**: static Web App Manifest + icon set; minimal service worker via `next-pwa`; offline fallback page. No push notifications yet.
+
+- **Files & structure**
+  - `public/manifest.webmanifest`: name, short_name, start_url `/`, display `standalone`, theme/background colors, scope `/`, icons (192/512 + maskable 512).
+  - `public/icons/` assets: `icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `apple-touch-icon.png`.
+  - `src/app/layout.tsx`: add `metadata` entries `manifest: '/manifest.webmanifest'`, `themeColor` (light/dark), and link `apple-touch-icon`.
+  - `src/app/offline/page.tsx`: lightweight offline fallback (logo, message, retry button).
+
+- **Service worker & caching**
+  - Use `next-pwa` to generate SW at build. Disable in dev.
+  - Cache strategy (sane defaults, minimal custom rules):
+    - App shell and static assets: `StaleWhileRevalidate`.
+    - Images (`/_next/image`, `public/*`): `CacheFirst` with short max-age.
+    - API/auth routes: bypass (network-only) to avoid stale auth.
+    - Fallback to `/offline` on navigation failures.
+
+- **Configuration changes**
+  - `package.json`: add `next-pwa` dependency.
+  - `next.config.ts`: wrap config with `withPWA({ dest: 'public', disable: process.env.NODE_ENV === 'development' })`.
+
+- **Testing checklist**
+  - Lighthouse PWA checks: installable, manifest valid, SW active.
+  - Add to Home Screen works on iOS/Android; icon/splash look correct.
+  - Offline navigation shows `/offline`; back online resumes normally.
+  - Versioning: confirm old caches purge on new deploy (cache bust via `next-pwa` revisioning).
+
+- **Future (not in MVP)**
+  - Background sync for outgoing messages, push notifications, richer offline caches per conversation.
+
 ## Phased delivery plan
 
 1. **Foundation**: auth, profile CRUD, shadcn/ui, dark mode, responsive layout
