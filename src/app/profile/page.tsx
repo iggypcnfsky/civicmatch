@@ -47,6 +47,16 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  async function failSafeLogout() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session) {
+        try { await supabase.auth.signOut(); } catch {}
+        if (typeof window !== "undefined") window.location.href = "/";
+      }
+    } catch {}
+  }
+
   function buildProfileData() {
     const displayName = `${first} ${last}`.trim();
     return {
@@ -104,24 +114,28 @@ export default function ProfilePage() {
     (async () => {
       setLoading(true);
       try {
-        const { data: userRes } = await supabase.auth.getUser();
-        const user = userRes?.user;
+        const { data: sess } = await supabase.auth.getSession();
+        const user = sess?.session?.user;
         if (!user) return;
         // Ensure a profile exists (create once; never overwrite existing data)
         const username = user.email ?? "";
-        const existing = await supabase
+        const { data: existing, error: existingErr } = await supabase
           .from("profiles")
           .select("user_id")
           .eq("user_id", user.id)
           .maybeSingle();
-        if (!existing.data && username) {
-          await supabase
+        if (existingErr) { await failSafeLogout(); return; }
+        if (!existing && username) {
+          const { error: insertErr } = await supabase
             .from("profiles")
             .insert({ user_id: user.id, username, data: { email: username } });
+          if (insertErr) { await failSafeLogout(); return; }
         }
         const { data, error } = await supabase.from("profiles").select("data").eq("user_id", user.id).single();
         if (!error && (data?.data as unknown)) {
           applyProfileData(data.data as ProfileData);
+        } else if (error) {
+          await failSafeLogout();
         }
       } finally {
         setLoading(false);
@@ -134,14 +148,15 @@ export default function ProfilePage() {
   const saveAll = async () => {
     setLoading(true);
     try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const user = userRes?.user;
+      const { data: sess } = await supabase.auth.getSession();
+      const user = sess?.session?.user;
       if (!user) return alert("Not authenticated");
       const payload = buildProfileData();
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({ data: payload })
         .eq("user_id", user.id);
+      if (error) { await failSafeLogout(); return; }
       localStorage.setItem("civicmatch.profileDraft", JSON.stringify(payload));
       const display = `${first} ${last}`.trim();
       localStorage.setItem("civicmatch.name", display);
@@ -168,8 +183,8 @@ export default function ProfilePage() {
   }
 
   async function uploadAvatar(file: File) {
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
+    const { data: sess } = await supabase.auth.getSession();
+    const user = sess?.session?.user;
     if (!user) return;
     const ext = file.name.split(".").pop() || "jpg";
     const path = `${user.id}/avatar.${ext}`;
@@ -178,7 +193,7 @@ export default function ProfilePage() {
       const { data } = supabase.storage.from("avatars").getPublicUrl(path);
       const url = data.publicUrl;
       setAvatarUrl(url);
-    }
+    } else { await failSafeLogout(); }
   }
 
   return (

@@ -7,8 +7,6 @@ self.addEventListener('install', (event) => {
       '/',
       OFFLINE_URL,
       '/manifest.webmanifest',
-      '/icon.svg',
-      '/favicon.ico',
     ]))
   );
   self.skipWaiting();

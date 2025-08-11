@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import TopBar from "@/components/TopBar";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
       { url: "/favicon.ico?v=2", sizes: "any" },
     ],
     apple: "/icon.png",
+    shortcut: ["/favicon.ico?v=2"],
     other: [{ rel: "mask-icon", url: "/icon.svg" }],
   },
 };
@@ -38,6 +40,7 @@ export default function RootLayout({
           <div className="pb-0">{children}</div>
         </div>
         <ServiceWorkerRegister />
+        <Analytics />
       </body>
     </html>
   );
