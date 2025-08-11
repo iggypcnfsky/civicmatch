@@ -33,68 +33,84 @@ export default function MessagesPage() {
   const scrollToEnd = () => endRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToEnd(); }, [messages, currentId]);
 
+  async function failSafeLogout() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session) {
+        try { await supabase.auth.signOut(); } catch {}
+        if (typeof window !== "undefined") window.location.href = "/";
+      }
+    } catch {}
+  }
+
   // Load conversations for current user (RLS restricts automatically)
   useEffect(() => {
     (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u?.user?.id || null;
-      setUserId(uid);
-      if (!uid) return;
-      const { data: convos, error } = await supabase
-        .from("conversations")
-        .select("id, updated_at, data")
-        .order("updated_at", { ascending: false });
-      if (error) return;
-      const participantIds: string[] = [];
-      const items: ConversationItem[] = (convos || []).map((c) => {
-        const participants: string[] = (c as { data: { participantIds?: string[] } }).data?.participantIds || [];
-        const otherId = participants.find((p) => p !== uid) || uid;
-        if (otherId) participantIds.push(otherId);
-        return { id: c.id, name: otherId, about: "", updatedAt: c.updated_at };
-      });
-      // Fetch counterpart profiles in one query
-      if (participantIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, username, data")
-          .in("user_id", participantIds);
-        const byId = new Map<string, unknown>();
-        (profs || []).forEach((p) => byId.set(p.user_id, p));
-        items.forEach((it) => {
-          const p = byId.get(it.name) as { data?: Record<string, unknown>; username?: string } | undefined;
-          const d = (p?.data ?? {}) as { displayName?: string; bio?: string; avatarUrl?: string };
-          it.name = d.displayName || p?.username || "Member";
-          it.about = d.bio || "";
-          it.avatarUrl = d.avatarUrl || undefined;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const uid = data?.session?.user?.id || null;
+        setUserId(uid);
+        if (!uid) { await failSafeLogout(); return; }
+        const { data: convos, error } = await supabase
+          .from("conversations")
+          .select("id, updated_at, data")
+          .order("updated_at", { ascending: false });
+        if (error) { await failSafeLogout(); return; }
+        const participantIds: string[] = [];
+        const items: ConversationItem[] = (convos || []).map((c) => {
+          const participants: string[] = (c as { data: { participantIds?: string[] } }).data?.participantIds || [];
+          const otherId = participants.find((p) => p !== uid) || uid;
+          if (otherId) participantIds.push(otherId);
+          return { id: c.id, name: otherId, about: "", updatedAt: c.updated_at };
         });
-      }
-      setThreads(items);
-      if (items.length > 0) setCurrentId(items[0].id);
+        // Fetch counterpart profiles in one query
+        if (participantIds.length > 0) {
+          const { data: profs, error: profErr } = await supabase
+            .from("profiles")
+            .select("user_id, username, data")
+            .in("user_id", participantIds);
+          if (!profErr) {
+            const byId = new Map<string, unknown>();
+            (profs || []).forEach((p) => byId.set(p.user_id, p));
+            items.forEach((it) => {
+              const p = byId.get(it.name) as { data?: Record<string, unknown>; username?: string } | undefined;
+              const d = (p?.data ?? {}) as { displayName?: string; bio?: string; avatarUrl?: string };
+              it.name = d.displayName || p?.username || "Member";
+              it.about = d.bio || "";
+              it.avatarUrl = d.avatarUrl || undefined;
+            });
+          }
+        }
+        setThreads(items);
+        if (items.length > 0) setCurrentId(items[0].id);
+      } catch { await failSafeLogout(); }
     })();
   }, []);
 
   // Load messages when thread changes
   useEffect(() => {
     (async () => {
-      if (!currentId) return;
-      const { data, error } = await supabase
-        .from("messages")
-        .select("id, sender_id, created_at, data")
-        .eq("conversation_id", currentId)
-        .order("created_at", { ascending: true });
-      if (error) return;
-      const uid = userId;
-      const mapped: ChatMessage[] = (data || []).map((m: { id: string; sender_id: string; created_at: string; data: { text?: string } }) => {
-        const text = m.data?.text || "";
-        const dt = new Date(m.created_at);
-        const time = `${dt.getHours().toString().padStart(2, "0")}:${dt
-          .getMinutes()
-          .toString()
-          .padStart(2, "0")}`;
-        return { id: m.id, text, isMine: m.sender_id === uid, time };
-      });
-      setMessages(mapped);
-      setTimeout(scrollToEnd, 50);
+      try {
+        if (!currentId) return;
+        const { data, error } = await supabase
+          .from("messages")
+          .select("id, sender_id, created_at, data")
+          .eq("conversation_id", currentId)
+          .order("created_at", { ascending: true });
+        if (error) { await failSafeLogout(); return; }
+        const uid = userId;
+        const mapped: ChatMessage[] = (data || []).map((m: { id: string; sender_id: string; created_at: string; data: { text?: string } }) => {
+          const text = m.data?.text || "";
+          const dt = new Date(m.created_at);
+          const time = `${dt.getHours().toString().padStart(2, "0")}:${dt
+            .getMinutes()
+            .toString()
+            .padStart(2, "0")}`;
+          return { id: m.id, text, isMine: m.sender_id === uid, time };
+        });
+        setMessages(mapped);
+        setTimeout(scrollToEnd, 50);
+      } catch { await failSafeLogout(); }
     })();
   }, [currentId, userId]);
 
@@ -236,7 +252,8 @@ export default function MessagesPage() {
                 ...prev,
                 { id: `optimistic-${now.getTime()}`, text, isMine: true, time: `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}` },
               ]);
-              await supabase.from("messages").insert(inserting);
+              const { error } = await supabase.from("messages").insert(inserting);
+              if (error) { await failSafeLogout(); }
               setTimeout(scrollToEnd, 50);
             }}
           >

@@ -34,46 +34,58 @@ export default function ExplorePage() {
   const [hasMore, setHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  async function failSafeLogout() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session) {
+        try { await supabase.auth.signOut(); } catch {}
+        if (typeof window !== "undefined") window.location.href = "/";
+      }
+    } catch {}
+  }
+
   useEffect(() => {
-    setIsAuthenticated(localStorage.getItem("civicmatch.authenticated") === "1");
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsAuthenticated(!!data?.session);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") setIsAuthenticated(!!session);
+      if (event === "SIGNED_OUT") setIsAuthenticated(false);
+    });
+    return () => { try { sub.subscription.unsubscribe(); } catch {} };
   }, []);
   // Sync auth state for OAuth redirects and sign-out
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN") {
-        localStorage.setItem("civicmatch.authenticated", "1");
         try { await ensureProfileForCurrentUser(); } catch {}
         try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
-        setIsAuthenticated(true);
       }
       if (event === "SIGNED_OUT") {
-        localStorage.removeItem("civicmatch.authenticated");
-        setIsAuthenticated(false);
+        // no-op
       }
-    });
-    // If session already exists (e.g., after redirect), mark as authenticated
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session) {
-        localStorage.setItem("civicmatch.authenticated", "1");
-        setIsAuthenticated(true);
-      }
+      setIsAuthenticated(!!session);
     });
     return () => { try { sub.subscription.unsubscribe(); } catch {} };
   }, []);
   // Load list of profiles the current user has already invited (pending connections)
   useEffect(() => {
     (async () => {
-      if (!isAuthenticated) return;
-      const { data: u } = await supabase.auth.getUser();
-      const me = u?.user?.id;
-      if (!me) return;
-      const { data } = await supabase
-        .from("connections")
-        .select("addressee_id")
-        .eq("requester_id", me)
-        .eq("status", "pending");
-      const ids = new Set<string>((data || []).map((r: { addressee_id: string }) => r.addressee_id));
-      setInvitedIds(ids);
+      try {
+        if (!isAuthenticated) return;
+        const { data: sess } = await supabase.auth.getSession();
+        const me = sess?.session?.user?.id;
+        if (!me) return;
+        const { data, error } = await supabase
+          .from("connections")
+          .select("addressee_id")
+          .eq("requester_id", me)
+          .eq("status", "pending");
+        if (error) { await failSafeLogout(); return; }
+        const ids = new Set<string>((data || []).map((r: { addressee_id: string }) => r.addressee_id));
+        setInvitedIds(ids);
+      } catch { await failSafeLogout(); }
     })();
   }, [isAuthenticated]);
 
@@ -122,6 +134,7 @@ export default function ExplorePage() {
       setOffset((prev) => prev + (data?.length ?? 0));
       if (!data || data.length < PAGE_SIZE) setHasMore(false);
     } catch {
+      await failSafeLogout();
     } finally {
       setIsLoading(false);
     }

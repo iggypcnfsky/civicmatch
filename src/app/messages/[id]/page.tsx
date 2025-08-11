@@ -24,43 +24,58 @@ export default function MobileChatPage() {
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
+  async function failSafeLogout() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session) {
+        try { await supabase.auth.signOut(); } catch {}
+        if (typeof window !== "undefined") window.location.href = "/";
+      }
+    } catch {}
+  }
+
   useEffect(() => {
     (async () => {
-      if (!id) return;
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u?.user?.id || null;
-      setUserId(uid);
-      // Load conversation to resolve counterpart id
-      const { data: conv } = await supabase
-        .from("conversations")
-        .select("data, updated_at")
-        .eq("id", id)
-        .maybeSingle();
-      const participants: string[] = (conv?.data?.participantIds as string[] | undefined) || [];
-      const otherId = participants.find((p) => p !== uid) || uid || null;
-      if (otherId) {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("username, data")
-          .eq("user_id", otherId)
+      try {
+        if (!id) return;
+        const { data: sess } = await supabase.auth.getSession();
+        const uid = sess?.session?.user?.id || null;
+        setUserId(uid);
+        if (!uid) { await failSafeLogout(); return; }
+        // Load conversation to resolve counterpart id
+        const { data: conv, error: convErr } = await supabase
+          .from("conversations")
+          .select("data, updated_at")
+          .eq("id", id)
           .maybeSingle();
-        const d = (prof?.data || {}) as { displayName?: string; bio?: string; avatarUrl?: string };
-        setName(d.displayName || prof?.username || "Member");
-        setAbout(d.bio || "");
-        setAvatarUrl(d.avatarUrl || "");
-      }
-      // Load messages
-      const { data: msgs } = await supabase
-        .from("messages")
-        .select("id, sender_id, created_at, data")
-        .eq("conversation_id", id)
-        .order("created_at", { ascending: true });
-      const mapped: ChatMessage[] = (msgs || []).map((m: { id: string; sender_id: string; created_at: string; data: { text?: string } }) => {
-        const dt = new Date(m.created_at);
-        const time = `${dt.getHours().toString().padStart(2, "0")}:${dt.getMinutes().toString().padStart(2, "0")}`;
-        return { id: m.id, text: m.data?.text || "", isMine: m.sender_id === uid, time };
-      });
-      setMessages(mapped);
+        if (convErr) { await failSafeLogout(); return; }
+        const participants: string[] = (conv?.data?.participantIds as string[] | undefined) || [];
+        const otherId = participants.find((p) => p !== uid) || uid || null;
+        if (otherId) {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("username, data")
+            .eq("user_id", otherId)
+            .maybeSingle();
+          const d = (prof?.data || {}) as { displayName?: string; bio?: string; avatarUrl?: string };
+          setName(d.displayName || prof?.username || "Member");
+          setAbout(d.bio || "");
+          setAvatarUrl(d.avatarUrl || "");
+        }
+        // Load messages
+        const { data: msgs, error: msgErr } = await supabase
+          .from("messages")
+          .select("id, sender_id, created_at, data")
+          .eq("conversation_id", id)
+          .order("created_at", { ascending: true });
+        if (msgErr) { await failSafeLogout(); return; }
+        const mapped: ChatMessage[] = (msgs || []).map((m: { id: string; sender_id: string; created_at: string; data: { text?: string } }) => {
+          const dt = new Date(m.created_at);
+          const time = `${dt.getHours().toString().padStart(2, "0")}:${dt.getMinutes().toString().padStart(2, "0")}`;
+          return { id: m.id, text: m.data?.text || "", isMine: m.sender_id === uid, time };
+        });
+        setMessages(mapped);
+      } catch { await failSafeLogout(); }
     })();
   }, [id]);
 
@@ -117,7 +132,8 @@ export default function MobileChatPage() {
             data: { text },
           };
           setText("");
-          await supabase.from("messages").insert(inserting);
+          const { error } = await supabase.from("messages").insert(inserting);
+          if (error) { await failSafeLogout(); }
           setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
         }}
       >

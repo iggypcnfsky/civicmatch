@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cm-cache-v1';
+const CACHE_NAME = 'cm-cache-v2';
 const OFFLINE_URL = '/offline';
 
 self.addEventListener('install', (event) => {

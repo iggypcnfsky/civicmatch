@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   themeColor: "#111827",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg?v=2", type: "image/svg+xml" },
+      { url: "/favicon.ico?v=2", sizes: "any" },
     ],
     apple: "/icon.png",
     other: [{ rel: "mask-icon", url: "/icon.svg" }],
