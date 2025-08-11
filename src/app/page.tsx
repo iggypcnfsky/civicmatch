@@ -5,13 +5,15 @@ import { useEffect, useRef, useState } from "react";
 import { SlidersHorizontal, X, Star, Mail, Briefcase, Wrench, MapPin, UsersRound, Clock, UserRound } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/components/AuthProvider";
 
 type Profile = { id: string; name: string; role: string; bio: string; avatarUrl?: string };
 
 const PAGE_SIZE = 24;
 
 export default function ExplorePage() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { status } = useAuth();
+  const isAuthenticated = status === "authenticated" ? true : status === "unauthenticated" ? false : null;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,31 +46,15 @@ export default function ExplorePage() {
     } catch {}
   }
 
+  // On sign-in, ensure profile exists once
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(!!data?.session);
-    })();
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") setIsAuthenticated(!!session);
-      if (event === "SIGNED_OUT") setIsAuthenticated(false);
-    });
-    return () => { try { sub.subscription.unsubscribe(); } catch {} };
-  }, []);
-  // Sync auth state for OAuth redirects and sign-out
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_IN") {
+    if (isAuthenticated) {
+      (async () => {
         try { await ensureProfileForCurrentUser(); } catch {}
         try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
-      }
-      if (event === "SIGNED_OUT") {
-        // no-op
-      }
-      setIsAuthenticated(!!session);
-    });
-    return () => { try { sub.subscription.unsubscribe(); } catch {} };
-  }, []);
+      })();
+    }
+  }, [isAuthenticated]);
   // Load list of profiles the current user has already invited (pending connections)
   useEffect(() => {
     (async () => {
@@ -207,9 +193,7 @@ export default function ExplorePage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       await ensureProfileForCurrentUser();
-      localStorage.setItem("civicmatch.authenticated", "1");
       try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
-      setIsAuthenticated(true);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Authentication failed";
       setAuthError(msg);
@@ -225,9 +209,7 @@ export default function ExplorePage() {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       await ensureProfileForCurrentUser();
-      localStorage.setItem("civicmatch.authenticated", "1");
       try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
-      setIsAuthenticated(true);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Sign up failed";
       setAuthError(msg);
@@ -256,7 +238,7 @@ export default function ExplorePage() {
     }
   }
 
-  if (isAuthenticated === false || isAuthenticated === null) {
+  if (isAuthenticated === false) {
     return (
       <div className="min-h-dvh grid grid-cols-1 lg:grid-cols-2">
         {/* Left: brand + about */}
@@ -334,6 +316,13 @@ export default function ExplorePage() {
             </div>
           </div>
         </section>
+      </div>
+    );
+  }
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-dvh grid place-items-center">
+        <div className="text-sm opacity-70">Checking session…</div>
       </div>
     );
   }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft, Compass, Mail, UsersRound } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/components/AuthProvider";
 
 function pillClasses(active: boolean): string {
   if (active) return "h-10 w-10 md:w-auto md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm";
@@ -19,17 +20,13 @@ function profileClasses(active: boolean): string {
 }
 
 export default function TopBar() {
-  const [isAuthed, setIsAuthed] = useState<boolean>(false);
+  const { status } = useAuth();
+  const isAuthed = status === "authenticated";
   const [_displayName, setDisplayName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   // Call usePathname unconditionally to keep hook order stable across renders
   const pathname = usePathname();
   useEffect(() => {
-    // Derive auth from Supabase session (robust across domains/builds)
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthed(!!data?.session);
-    })();
     const readFromCache = () => {
       const name = localStorage.getItem("civicmatch.displayName") || localStorage.getItem("civicmatch.name") || "";
       const avatar = localStorage.getItem("civicmatch.avatarUrl") || "";
@@ -58,8 +55,6 @@ export default function TopBar() {
     readFromCache();
     fetchOnceIfMissing();
     const onAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthed(!!data?.session);
       // Force refresh avatar/name on login regardless of cache
       await fetchAndCacheProfile();
     };
@@ -67,22 +62,35 @@ export default function TopBar() {
       // When profile changes, refetch to get fresh avatar, then cache
       fetchAndCacheProfile();
     };
-    // Subscribe to Supabase auth changes directly
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-        await onAuth();
-      }
-    });
     window.addEventListener("civicmatch:auth-changed", onAuth);
     window.addEventListener("civicmatch:profile-updated", onProfileUpdated);
     window.addEventListener("storage", onProfileUpdated);
     return () => {
-      try { sub?.subscription?.unsubscribe(); } catch {}
       window.removeEventListener("civicmatch:auth-changed", onAuth);
       window.removeEventListener("civicmatch:profile-updated", onProfileUpdated);
       window.removeEventListener("storage", onProfileUpdated);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When auth becomes available, refresh profile cache once
+  useEffect(() => {
+    if (!isAuthed) return;
+    (async () => {
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        if (!userRes?.user?.id) return;
+        const { data } = await supabase.from("profiles").select("username, data").eq("user_id", userRes.user.id).maybeSingle();
+        const d = (data?.data || {}) as Record<string, unknown>;
+        const name = (typeof d.displayName === "string" && d.displayName) || data?.username || "Member";
+        const avatar = (typeof d.avatarUrl === "string" && d.avatarUrl) || "";
+        localStorage.setItem("civicmatch.displayName", name);
+        if (avatar) localStorage.setItem("civicmatch.avatarUrl", avatar); else localStorage.removeItem("civicmatch.avatarUrl");
+        setDisplayName(name);
+        setAvatarUrl(avatar);
+      } catch {}
+    })();
+  }, [isAuthed]);
 
   if (!isAuthed) return null;
   const isExplore = pathname === "/";

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type AimItem = { title: string; summary: string };
@@ -24,7 +25,8 @@ type ViewProfile = {
 };
 
 function ProfilesPageInner() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { status } = useAuth();
+  const isAuthenticated = status === "authenticated" ? true : status === "unauthenticated" ? false : null;
   const [message, setMessage] = useState("Hey, I’d like to connect!");
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -34,17 +36,7 @@ function ProfilesPageInner() {
   const params = useSearchParams();
   const router = useRouter();
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(!!data?.session);
-    })();
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") setIsAuthenticated(!!session);
-      if (event === "SIGNED_OUT") setIsAuthenticated(false);
-    });
-    return () => { try { sub.subscription.unsubscribe(); } catch {} };
-  }, []);
+  // auth is provided by context
 
   // Safe parsers for JSONB payloads
   const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);

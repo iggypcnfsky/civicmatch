@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { AuthProvider } from "@/components/AuthProvider";
 import "./globals.css";
 import TopBar from "@/components/TopBar";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
@@ -35,12 +36,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} antialiased bg-background text-foreground`}>
-        <div className="min-h-dvh">
-          <TopBar />
-          <div className="pb-0">{children}</div>
-        </div>
-        <ServiceWorkerRegister />
-        <Analytics />
+        <AuthProvider>
+          <div className="min-h-dvh">
+            <TopBar />
+            <div className="pb-0">{children}</div>
+          </div>
+          <ServiceWorkerRegister />
+          <Analytics />
+        </AuthProvider>
       </body>
     </html>
   );

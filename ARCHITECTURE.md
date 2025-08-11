@@ -106,6 +106,8 @@ Score candidate C for seeker S by weighted overlap of values, skills, and causes
 - Mobile: icons‑only for the same actions; on `/messages/[id]` a back arrow appears in the global top bar
 - Top bar remains visible while scrolling (backdrop blur), keeps actions accessible
 
+Auth context: the app tree is wrapped by a lightweight client `AuthProvider` in `app/layout.tsx`. It exposes `status` (loading/authenticated/unauthenticated), `session`, and `user` via `useAuth()`. Components like `TopBar`, Explore, and Profiles read auth from this context (single source of truth) instead of querying Supabase directly on every page.
+
 ### Explore view
 - Default view after login at `/`
 - Masonry grid of profile cards (CSS columns) with infinite loading using `IntersectionObserver`
@@ -274,7 +276,7 @@ Automation (using MCP Supabase tools):
 
 ### Current implementation (status)
 - **Environment**: `.env` contains `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (not committed).
-- **Client**: browser client in `src/lib/supabase/client.ts`. Server wrapper will be added when RSC reads are implemented.
+- **Client**: browser client in `src/lib/supabase/client.ts` configured with stable auth options (`persistSession`, `autoRefreshToken`, `detectSessionInUrl`) and a dedicated `storageKey` (`civicmatch.supabase.auth`). A global `AuthProvider` wraps the app and derives auth from `getSession()` and `onAuthStateChange`, exposing `useAuth()`.
 - **Types**: generated at `src/types/supabase.ts` and refreshed after migrations.
 - **Migrations**: `supabase/migrations/0001_init.sql` applied (profiles, connections, conversations, messages, saved_searches + RLS + triggers).
 - **Auth wiring**: Explore page (`/`) login/register form uses Supabase Auth (email/password). After auth, an `ensureProfile` step upserts into `public.profiles` with `user_id`, `username = email`, and a starter `data` payload.
@@ -305,9 +307,7 @@ Automation (using MCP Supabase tools):
   - Add a "Continue with Google" pill button alongside email/password.
   - On click, call:
     - `await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })` (redirect flow; no custom route needed).
-  - On mount, register an auth listener to sync local state and profile after OAuth redirect:
-    - `supabase.auth.onAuthStateChange((event) => { if (event === 'SIGNED_IN') { localStorage.setItem('civicmatch.authenticated','1'); ensureProfileForCurrentUser(); try { window.dispatchEvent(new Event('civicmatch:auth-changed')); } catch {} } })`.
-  - Also check `supabase.auth.getSession()` on mount to set the initial authenticated state if a session already exists (covers refresh and return from OAuth).
+  - Auth state comes from `AuthProvider` (`useAuth()`), initialized from `getSession()` and kept in sync by `onAuthStateChange` (no localStorage flags).
   - `ensureProfileForCurrentUser()` upserts on first sign‑in and bootstraps profile data from Google metadata:
     - Map `user.user_metadata.name` → `profiles.data.displayName` (fallback to `full_name` or `given_name + family_name`, else email prefix).
     - Map `user.user_metadata.picture` → `profiles.data.avatarUrl` (fallback to `avatar_url` if present).
@@ -333,7 +333,9 @@ Automation (using MCP Supabase tools):
 2. On success, app upserts `public.profiles` with `user_id` and `username = email` (unique), plus `data.email`. If available from Google, also set `data.displayName` and `data.avatarUrl` during the initial insert (existing rows are not overwritten).
 3. Navigating to `/profile` loads `profiles.data` for the current user and binds it to the edit form.
 4. Clicking Save updates `profiles.data` (JSONB). Local draft remains for resilience.
-5. Logout signs out via Supabase and clears local flags.
+5. Logout calls `supabase.auth.signOut()`; `AuthProvider` transitions to `unauthenticated`.
+
+Fail‑safe: On client reads/writes, if a Supabase query fails and there is no active session (`getSession()` is null), the UI triggers a defensive `signOut()` and redirects to `/` to recover from stale or invalid client sessions.
 
 ## Database schema (JSONB‑first)
 
@@ -561,6 +563,7 @@ Example `data` payloads
 
 ## Analytics & telemetry (opt‑in)
 
+- **Web analytics**: Vercel Analytics via `<Analytics />` in `app/layout.tsx` (zero‑config, privacy‑friendly).
 - **Product analytics**: PostHog (self‑hostable) with anonymous by default
 - **Errors**: Sentry for server/client error monitoring
 
