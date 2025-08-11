@@ -16,7 +16,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   themeColor: "#111827",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
     apple: "/icon.png",
     other: [{ rel: "mask-icon", url: "/icon.svg" }],
   },

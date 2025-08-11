@@ -34,7 +34,17 @@ function ProfilesPageInner() {
   const params = useSearchParams();
   const router = useRouter();
 
-  useEffect(() => { setIsAuthenticated(localStorage.getItem("civicmatch.authenticated") === "1"); }, []);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsAuthenticated(!!data?.session);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") setIsAuthenticated(!!session);
+      if (event === "SIGNED_OUT") setIsAuthenticated(false);
+    });
+    return () => { try { sub.subscription.unsubscribe(); } catch {} };
+  }, []);
 
   // Safe parsers for JSONB payloads
   const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);

@@ -25,7 +25,11 @@ export default function TopBar() {
   // Call usePathname unconditionally to keep hook order stable across renders
   const pathname = usePathname();
   useEffect(() => {
-    setIsAuthed(localStorage.getItem("civicmatch.authenticated") === "1");
+    // Derive auth from Supabase session (robust across domains/builds)
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsAuthed(!!data?.session);
+    })();
     const readFromCache = () => {
       const name = localStorage.getItem("civicmatch.displayName") || localStorage.getItem("civicmatch.name") || "";
       const avatar = localStorage.getItem("civicmatch.avatarUrl") || "";
@@ -54,7 +58,8 @@ export default function TopBar() {
     readFromCache();
     fetchOnceIfMissing();
     const onAuth = async () => {
-      setIsAuthed(localStorage.getItem("civicmatch.authenticated") === "1");
+      const { data } = await supabase.auth.getSession();
+      setIsAuthed(!!data?.session);
       // Force refresh avatar/name on login regardless of cache
       await fetchAndCacheProfile();
     };
@@ -62,10 +67,17 @@ export default function TopBar() {
       // When profile changes, refetch to get fresh avatar, then cache
       fetchAndCacheProfile();
     };
+    // Subscribe to Supabase auth changes directly
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        await onAuth();
+      }
+    });
     window.addEventListener("civicmatch:auth-changed", onAuth);
     window.addEventListener("civicmatch:profile-updated", onProfileUpdated);
     window.addEventListener("storage", onProfileUpdated);
     return () => {
+      try { sub?.subscription?.unsubscribe(); } catch {}
       window.removeEventListener("civicmatch:auth-changed", onAuth);
       window.removeEventListener("civicmatch:profile-updated", onProfileUpdated);
       window.removeEventListener("storage", onProfileUpdated);
