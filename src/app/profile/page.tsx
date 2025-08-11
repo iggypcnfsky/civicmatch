@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -26,6 +27,7 @@ type ProfileData = {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
   // Initialize empty so fetched data is not overridden by demo defaults
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
@@ -202,6 +204,16 @@ export default function ProfilePage() {
         <UserRound className="size-5 text-[color:var(--accent)]" />
         <h1 className="text-2xl font-bold">Edit Profile</h1>
         <div className="hidden md:flex items-center gap-2 ml-auto">
+          <button
+            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+            onClick={async () => {
+              const { data: sess } = await supabase.auth.getSession();
+              const uid = sess?.session?.user?.id;
+              if (uid) router.push(`/profiles?user=${uid}`);
+            }}
+          >
+            Preview profile
+          </button>
           <button className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={saveAll} disabled={loading}>
             <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
           </button>
@@ -285,11 +297,12 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
           {/* Skills & What I Do */}
-          <section id="skills" className="card space-y-3 min-h-[200px]">
+          <section id="skills" className="card space-y-3 min-h-[220px] h-full flex flex-col">
             <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
             <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
               rows={3}
               placeholder="List your core skills or roles (e.g., Full‑stack engineer, Product manager)"
               value={skills}
@@ -298,10 +311,10 @@ export default function ProfilePage() {
           </section>
 
           {/* What I'm Known For */}
-          <section id="fame" className="card space-y-3">
+          <section id="fame" className="card space-y-3 min-h-[220px] h-full flex flex-col">
             <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Known For</h2></header>
             <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
               rows={3}
               placeholder="What are you known for? (e.g., Led open‑data initiative in my city; ex‑Google PM)"
               value={fame}
@@ -310,10 +323,10 @@ export default function ProfilePage() {
           </section>
 
           {/* What I'm Focused On */}
-          <section id="aim" className="card space-y-3">
+          <section id="aim" className="card space-y-3 min-h-[220px] h-full flex flex-col">
             <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Focused On</h2></header>
             <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
               rows={3}
               placeholder="What are you focusing on in the next 3–6 months? (e.g., Building MVP for civic engagement app)"
               value={aimSingle}
@@ -322,10 +335,10 @@ export default function ProfilePage() {
           </section>
 
           {/* Long-term Strategy */}
-          <section id="game" className="card space-y-3">
+          <section id="game" className="card space-y-3 min-h-[220px] h-full flex flex-col">
             <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
             <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
               rows={3}
               placeholder="What’s your long‑term vision? (e.g., Launch a public‑interest tech cooperative)"
               value={game}
@@ -334,10 +347,10 @@ export default function ProfilePage() {
           </section>
 
           {/* Work Style */}
-          <section id="work-style" className="card space-y-3">
+          <section id="work-style" className="card space-y-3 min-h-[220px] h-full flex flex-col">
             <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
             <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
               rows={3}
               placeholder="How do you like to work? (e.g., Remote async, weekly check‑ins, prefers rapid prototyping)"
               value={workStyle}
@@ -346,16 +359,17 @@ export default function ProfilePage() {
           </section>
 
           {/* What do I need help with */}
-          <section id="help-needed" className="card space-y-3">
+          <section id="help-needed" className="card space-y-3 min-h-[220px] h-full flex flex-col">
             <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
             <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2"
+              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
               rows={3}
               placeholder="What help do you need? (e.g., Designer to shape UX; Intro to city data portal)"
               value={helpNeeded}
               onChange={(e) => setHelpNeeded(e.target.value)}
             />
           </section>
+          </div>
 
           {/* Portfolio removed per new design */}
 
@@ -373,6 +387,16 @@ export default function ProfilePage() {
           disabled={loading}
         >
           <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
+        </button>
+        <button
+          className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+          onClick={async () => {
+            const { data: sess } = await supabase.auth.getSession();
+            const uid = sess?.session?.user?.id;
+            if (uid) router.push(`/profiles?user=${uid}`);
+          }}
+        >
+          Preview profile
         </button>
         <button
           className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"

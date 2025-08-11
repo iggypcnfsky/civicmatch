@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Compass, Mail, UsersRound } from "lucide-react";
 import Logo from "@/components/Logo";
@@ -24,6 +24,10 @@ export default function TopBar() {
   const isAuthed = status === "authenticated";
   const [_displayName, setDisplayName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [showMsgToast, setShowMsgToast] = useState<boolean>(false);
+  const [hasNewMessage, setHasNewMessage] = useState<boolean>(false);
+  const toastTimerRef = useRef<number | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
   // Call usePathname unconditionally to keep hook order stable across renders
   const pathname = usePathname();
   useEffect(() => {
@@ -92,6 +96,142 @@ export default function TopBar() {
     })();
   }, [isAuthed]);
 
+  // Realtime: show toast when a new message arrives for this user
+  useEffect(() => {
+    if (!isAuthed) return;
+    let isMounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    (async () => {
+      console.log("[TopBar] Realtime init — isAuthed:", isAuthed);
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes?.user?.id;
+      console.log("[TopBar] Current user id:", uid);
+      if (!uid) return;
+
+      channel = supabase
+        .channel("messages_toast")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages" },
+          async (payload) => {
+            console.log("[TopBar] INSERT payload received:", payload);
+            try {
+              const newRow = payload.new as { sender_id?: string; conversation_id?: string };
+              if (!newRow || !newRow.conversation_id) return;
+              // Ignore my own sends
+              if (newRow.sender_id === uid) {
+                console.log("[TopBar] Ignoring own message");
+                return;
+              }
+              // Skip if already inside messages views
+              if (typeof window !== "undefined" && window.location.pathname.startsWith("/messages")) {
+                console.log("[TopBar] Skipping toast because already on /messages");
+                return;
+              }
+              // Check that the user can access the conversation (participant via RLS)
+              const { data: conv } = await supabase
+                .from("conversations")
+                .select("id")
+                .eq("id", newRow.conversation_id)
+                .maybeSingle();
+              if (!conv) {
+                console.log("[TopBar] Conversation not visible to this user — likely not a participant");
+                return;
+              }
+              if (!isMounted) return;
+              setShowMsgToast(true);
+              setHasNewMessage(true);
+              if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+              toastTimerRef.current = window.setTimeout(() => setShowMsgToast(false), 4000);
+              console.log("[TopBar] Toast shown and dot set");
+            } catch {}
+          }
+        )
+        .subscribe((status) => {
+          console.log("[TopBar] Realtime channel status:", status);
+        });
+    })();
+
+    return () => {
+      isMounted = false;
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      if (channel) {
+        console.log("[TopBar] Removing realtime channel");
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [isAuthed]);
+
+  // Polling fallback: check for recent unseen incoming messages in the background
+  useEffect(() => {
+    if (!isAuthed) return;
+    const cancelled = false;
+    (async () => {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes?.user?.id;
+      if (!uid) return;
+      const fromStorage = localStorage.getItem("civicmatch.lastSeenMessagesAt");
+      const baseline = fromStorage || new Date(0).toISOString();
+      // Initial check once on mount
+      try {
+        const { data } = await supabase
+          .from("messages")
+          .select("id, sender_id, created_at")
+          .gt("created_at", baseline)
+          .neq("sender_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (!cancelled && (data?.length || 0) > 0 && !window.location.pathname.startsWith("/messages")) {
+          console.log("[TopBar] Poll detected new message");
+          setHasNewMessage(true);
+          setShowMsgToast(true);
+          if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = window.setTimeout(() => setShowMsgToast(false), 4000);
+        }
+      } catch {}
+    })();
+
+    // Periodic polling every 12s
+    pollTimerRef.current = window.setInterval(async () => {
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        const uid = userRes?.user?.id;
+        if (!uid) return;
+        const fromStorage = localStorage.getItem("civicmatch.lastSeenMessagesAt");
+        const baseline = fromStorage || new Date(0).toISOString();
+        const { data } = await supabase
+          .from("messages")
+          .select("id, sender_id, created_at")
+          .gt("created_at", baseline)
+          .neq("sender_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if ((data?.length || 0) > 0 && !window.location.pathname.startsWith("/messages")) {
+          console.log("[TopBar] Poll interval detected new message");
+          setHasNewMessage(true);
+          setShowMsgToast(true);
+          if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = window.setTimeout(() => setShowMsgToast(false), 4000);
+        }
+      } catch {}
+    }, 12000) as unknown as number;
+
+    return () => {
+      if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
+    };
+  }, [isAuthed]);
+
+  // Clear dot when entering messages page
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/messages")) {
+      console.log("[TopBar] Path changed to", pathname, "— clearing dot");
+      setHasNewMessage(false);
+      // Mark as seen now
+      try { localStorage.setItem("civicmatch.lastSeenMessagesAt", new Date().toISOString()); } catch {}
+    }
+  }, [pathname]);
+
   if (!isAuthed) return null;
   const isExplore = pathname === "/";
   const isProfiles = pathname === "/profiles" || pathname.startsWith("/profiles/");
@@ -119,8 +259,22 @@ export default function TopBar() {
           <UsersRound className="size-4" />
           <span className="hidden md:inline">Profiles</span>
         </Link>
-        <Link href="/messages" className={pillClasses(isMessages)} aria-label="Messages">
-          <Mail className="size-4" />
+        <Link
+          href="/messages"
+          className={`${pillClasses(isMessages)} relative`}
+          aria-label="Messages"
+          onClick={() => {
+            console.log("[TopBar] Messages clicked — clearing dot");
+            setHasNewMessage(false);
+            try { localStorage.setItem("civicmatch.lastSeenMessagesAt", new Date().toISOString()); } catch {}
+          }}
+        >
+          <span className="relative inline-flex items-center">
+            <Mail className="size-4" />
+            {hasNewMessage && !isMessages && (
+              <span className="absolute left-full ml-1 top-0.5 size-2 rounded-full bg-[color:var(--accent)] ring-2 ring-[color:var(--background)]" aria-hidden="true" />
+            )}
+          </span>
           <span className="hidden md:inline">Messages</span>
         </Link>
         <Link href="/profile" className={profileClasses(isMyProfile)} aria-label="Profile">
@@ -135,6 +289,15 @@ export default function TopBar() {
           {/* No text on desktop for profile button to keep fixed width */}
         </Link>
       </div>
+      {showMsgToast && !isMessages && (
+        <Link
+          href="/messages"
+          className="fixed right-4 top-14 z-[60] inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm shadow-md bg-[color:var(--accent)] text-[color:var(--background)]"
+          aria-live="polite"
+        >
+          <Mail className="size-4" /> New message — Open
+        </Link>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Search, CheckCheck } from "lucide-react";
+import { Send, Search, CheckCheck, Inbox } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 type ConversationItem = {
@@ -130,6 +130,15 @@ export default function MessagesPage() {
           </div>
           {/* Conversations */}
           <div className="flex-1 overflow-auto">
+            {threads.length === 0 && (
+              <div className="h-full grid place-items-center p-6 text-center text-sm opacity-80">
+                <div className="flex flex-col items-center gap-2">
+                  <Inbox className="size-6 opacity-70" />
+                  <div>No conversations yet</div>
+                  <div className="text-xs opacity-70">Invite someone from Profiles to start a chat.</div>
+                </div>
+              </div>
+            )}
             {threads.map((t) => (
               <button
                 key={t.id}
@@ -169,6 +178,16 @@ export default function MessagesPage() {
 
       {/* Active thread */}
       <section className="hidden lg:flex flex-col card p-0 overflow-hidden">
+        {(!currentId || threads.length === 0) ? (
+          <div className="flex-1 grid place-items-center p-8 text-center text-sm opacity-80">
+            <div className="flex flex-col items-center gap-2">
+              <Inbox className="size-7 opacity-70" />
+              <div>No messages yet</div>
+              <div className="text-xs opacity-70">Select a conversation or invite someone to connect.</div>
+            </div>
+          </div>
+        ) : (
+        <>
         <header className="p-3 flex items-center justify-between border-b border-divider">
           <div className="flex items-center gap-3 min-w-0">
             <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
@@ -260,6 +279,8 @@ export default function MessagesPage() {
             <Send className="size-4" /> Send
           </button>
         </form>
+        </>
+        )}
       </section>
       </div>
     </div>

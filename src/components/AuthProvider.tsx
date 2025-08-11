@@ -36,6 +36,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Ensure Realtime uses the current JWT for RLS-filtered changes
+  useEffect(() => {
+    const token = session?.access_token;
+    if (token) {
+      try {
+        // Attach auth to Realtime so postgres_changes respect RLS for this user
+        supabase.realtime.setAuth(token);
+        // Optional: reconnect existing channels with new token
+        supabase.realtime.getChannels().forEach((ch) => ch.send({ type: "broadcast", event: "system:refresh-jwt", payload: {} }));
+        // Debug
+        // eslint-disable-next-line no-console
+        console.log("[AuthProvider] Realtime auth token set");
+      } catch {}
+    }
+  }, [session]);
+
   const value = useMemo<AuthContextValue>(() => ({
     status,
     session,

@@ -7,13 +7,14 @@ import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 
-type Profile = { id: string; name: string; role: string; bio: string; avatarUrl?: string };
+  type Profile = { id: string; name: string; role: string; bio: string; avatarUrl?: string; tags?: string[] };
 
 const PAGE_SIZE = 24;
 
 export default function ExplorePage() {
   const { status } = useAuth();
   const isAuthenticated = status === "authenticated" ? true : status === "unauthenticated" ? false : null;
+  const [mounted, setMounted] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -79,16 +80,20 @@ export default function ExplorePage() {
   type ProfileRow = { user_id: string; username: string | null; data: unknown; created_at: string };
 
   const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-  const asStringArray = (v: unknown): string[] =>
-    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  const asStringArray = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
+    if (typeof v === "string") return v.split(",").map((s) => s.trim()).filter(Boolean);
+    return [];
+  };
 
   function mapRowToProfile(row: ProfileRow): Profile {
     const d = (row.data ?? {}) as Record<string, unknown>;
     const name = asString(d["displayName"]) || row.username || "Member";
     const role = (asStringArray(d["skills"])?.[0]) || "Member";
+    const tags = asStringArray(d["tags"])?.slice(0,3) || [];
     const bio = asString(d["bio"]) || "";
     const avatarUrl = asString(d["avatarUrl"]);
-    return { id: row.user_id, name, role, bio, avatarUrl };
+    return { id: row.user_id, name, role, bio, avatarUrl, tags };
   }
 
   async function fetchNextPage() {
@@ -127,6 +132,7 @@ export default function ExplorePage() {
   }
 
   useEffect(() => {
+    setMounted(true);
     if (isAuthenticated) {
       // Initial load on auth
       setItems([]);
@@ -334,26 +340,32 @@ export default function ExplorePage() {
         {/* Masonry-like grid using CSS columns */}
         <section className="min-w-0">
           <div className="columns-1 sm:columns-2 xl:columns-3 gap-4">
-            {items.map((p) => (
+            {items.map((p, idx) => (
               <article
                 key={p.id}
-                className={`mb-4 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm ${invitedIds.has(p.id) ? "opacity-50" : ""}`}
+                className={`mb-4 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm transition-all duration-500 ease-out ${invitedIds.has(p.id) ? "opacity-50" : "hover:-translate-y-0.5"} ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}
+                style={{ transitionDelay: `${idx * 30}ms` }}
               >
-                <Link href={`/profiles?user=${encodeURIComponent(p.id)}`} className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl">
-                  <div className="relative aspect-[4/3] bg-[color:var(--muted)]/40">
+                <Link href={`/profiles?user=${encodeURIComponent(p.id)}`} className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl group">
+                  <div className="relative aspect-[4/3] bg-[color:var(--muted)]/40 overflow-hidden">
                     {p.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.avatarUrl} alt={p.name} className="absolute inset-0 w-full h-full object-cover" />
+                      <img src={p.avatarUrl} alt={p.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105" />
                     ) : null}
-                    <span className="absolute top-3 left-3 rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-xs">
-                      {p.role}
-                    </span>
-                    {invitedIds.has(p.id) && (
-                      <span className="absolute top-3 left-3 translate-y-8 rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-[10px] inline-flex items-center gap-1">
-                        <Mail className="size-3" />
-                        Invited
-                      </span>
-                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
+                    <div className="absolute top-3 left-3 flex flex-row flex-wrap items-start gap-1 max-w-[85%]">
+                      {(p.tags && p.tags.length > 0 ? p.tags : [p.role]).slice(0,3).map((t, i) => (
+                        <span key={i} className="inline-flex items-center rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-xs whitespace-nowrap">
+                          {t}
+                        </span>
+                      ))}
+                      {invitedIds.has(p.id) && (
+                        <span className="inline-flex items-center rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-[10px] gap-1 whitespace-nowrap">
+                          <Mail className="size-3" />
+                          Invited
+                        </span>
+                      )}
+                    </div>
                     <button
                       className={`absolute top-3 right-3 h-8 w-8 rounded-full border flex items-center justify-center ${favoriteIds.has(p.id) ? "bg-[color:var(--accent)] text-[color:var(--background)] border-transparent" : "bg-[color:var(--background)]/80 border-divider"}`}
                       aria-label="Favorite"
@@ -388,33 +400,19 @@ export default function ExplorePage() {
         {/* Sticky filter panel (desktop) */}
         <aside className="hidden lg:block sticky top-20 h-[calc(100dvh-5rem)] overflow-auto">
             <div className="card space-y-3 rounded-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[color:var(--accent)]" /><h3 className="font-semibold">Filters</h3></div>
-              <button className="text-xs underline opacity-80" onClick={() => alert('Reset filters')}>Reset</button>
-            </div>
-            <div className="text-xs opacity-80">Tune who you want to meet. These settings affect Explore.</div>
-              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Briefcase className="size-4" /> Role: Any</button>
-              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><MapPin className="size-4" /> Distance: Anywhere</button>
-              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Wrench className="size-4" /> Skills: Any</button>
+            <div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[color:var(--accent)]" /><h3 className="font-semibold">Filters</h3></div>
+            <div className="text-xs opacity-80">Keep it simple: show only your favorites.</div>
             <button
               className={`${favoritesOnly ? 'h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
               onClick={() => {
                 const next = !favoritesOnly;
                 setFavoritesOnly(next);
-                // Reset and refetch with new filter
                 setItems([]); setOffset(0); setHasMore(true);
                 fetchNextPage();
               }}
             >
               <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
             </button>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UserRound className="size-4" /> Experience: Any</button>
-                <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Clock className="size-4" /> Availability: Any</button>
-            </div>
-              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UsersRound className="size-4" /> Collaboration: Any</button>
-              <div className="pt-1 text-xs opacity-70">Changes auto‑save. Use Save to persist across devices.</div>
-              <button className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm">Save Filters</button>
           </div>
         </aside>
       </div>
@@ -440,10 +438,7 @@ export default function ExplorePage() {
                 <X className="size-4" />
               </button>
             </div>
-            <div className="text-xs opacity-80">Tune who you want to meet.</div>
-            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Briefcase className="size-4" /> Role: Any</button>
-            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><MapPin className="size-4" /> Distance: Anywhere</button>
-            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Wrench className="size-4" /> Skills: Any</button>
+            <div className="text-xs opacity-80">Show only your favorites.</div>
             <button
               className={`${favoritesOnly ? 'h-12 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
               onClick={() => {
@@ -455,12 +450,7 @@ export default function ExplorePage() {
             >
               <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UserRound className="size-4" /> Experience: Any</button>
-              <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><Clock className="size-4" /> Availability: Any</button>
-            </div>
-            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"><UsersRound className="size-4" /> Collaboration: Any</button>
-            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={() => setFiltersOpen(false)}>Save Filters</button>
+            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--background)] hover:bg-[color:var(--muted)]/20 text-sm" onClick={() => setFiltersOpen(false)}>Done</button>
           </div>
         </div>
       )}

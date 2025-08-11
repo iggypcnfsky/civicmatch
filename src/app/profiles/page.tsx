@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle } from "lucide-react";
+import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle, Star } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -27,14 +27,18 @@ type ViewProfile = {
 function ProfilesPageInner() {
   const { status } = useAuth();
   const isAuthenticated = status === "authenticated" ? true : status === "unauthenticated" ? false : null;
-  const [message, setMessage] = useState("Hey, I’d like to connect!");
+  const [message, setMessage] = useState("");
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [profile, setProfile] = useState<ViewProfile | null>(null);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [animateIn, setAnimateIn] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const params = useSearchParams();
   const router = useRouter();
+  const invitePlaceholder = "Hi! I’m impressed by your work on … Would you be open to a quick chat about collaborating on civic tech? I can help with …";
 
   // auth is provided by context
 
@@ -94,6 +98,7 @@ function ProfilesPageInner() {
 
   // Load invited (pending) connections for current user to avoid showing already-invited profiles
   useEffect(() => {
+    setMounted(true);
     (async () => {
       if (!isAuthenticated) return;
       const { data: u } = await supabase.auth.getUser();
@@ -109,41 +114,55 @@ function ProfilesPageInner() {
     })();
   }, [isAuthenticated]);
 
+  // Load a specific profile if ?user=<id> is present (prevents duplicate fetches)
   useEffect(() => {
     (async () => {
       if (!isAuthenticated) return;
       const id = params.get("user");
-      // If a specific profile is requested, always show it (even if already invited)
-      if (id) {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("user_id, username, data")
-          .eq("user_id", id)
-          .maybeSingle();
-         if (!error && data) {
-          const row = data as { user_id: string; username: string; data: Record<string, unknown> };
-          setTargetUserId(row.user_id);
-          const d = (row.data || {}) as Record<string, unknown>;
-          const name = asString(d.displayName) || row.username || "Member";
-          const location = locationLabel(d.location);
-          const tags = toStringArray(d.tags);
-          const bio = asString(d.bio) || "";
-          const links = toLinksArray(d.links);
-          const skills = toStringArray(d.skills);
-          const fame = asString(d.fame) || "";
-          const aim: AimItem[] = Array.isArray(d.aim) ? (d.aim as AimItem[]) : [];
-          const game = asString(d.game) || "";
-          const portfolio: string[] = Array.isArray(d.portfolio)
-            ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
-            : [];
-          const avatarUrl = asString(d.avatarUrl);
-          const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
-          const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
-          setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
-          return;
-        }
+      if (!id) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, username, data")
+        .eq("user_id", id)
+        .maybeSingle();
+      if (!error && data) {
+        const row = data as { user_id: string; username: string; data: Record<string, unknown> };
+        setTargetUserId(row.user_id);
+        const d = (row.data || {}) as Record<string, unknown>;
+        const name = asString(d.displayName) || row.username || "Member";
+        const location = locationLabel(d.location);
+        const tags = toStringArray(d.tags);
+        const bio = asString(d.bio) || "";
+        const links = toLinksArray(d.links);
+        const skills = toStringArray(d.skills);
+        const fame = asString(d.fame) || "";
+        const aim: AimItem[] = Array.isArray(d.aim) ? (d.aim as AimItem[]) : [];
+        const game = asString(d.game) || "";
+        const portfolio: string[] = Array.isArray(d.portfolio)
+          ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
+          : [];
+        const avatarUrl = asString(d.avatarUrl);
+        const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
+        const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
+        setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
+        try {
+          const raw = localStorage.getItem("civicmatch.favorites");
+          const arr: string[] = raw ? JSON.parse(raw) : [];
+          setIsFavorite(arr.includes(row.user_id));
+        } catch { setIsFavorite(false); }
+        // Animate entire panel together as soon as profile is ready
+        setAnimateIn(false);
+        requestAnimationFrame(() => setAnimateIn(true));
       }
-      // Fallback random (exclude invited and self)
+    })();
+  }, [isAuthenticated, params]);
+
+  // Fallback random profile when there is no ?user param
+  useEffect(() => {
+    (async () => {
+      if (!isAuthenticated) return;
+      const id = params.get("user");
+      if (id) return; // handled by the specific-profile effect
       const { count } = await supabase.from("profiles").select("*", { count: "exact", head: true });
       if (!count || count <= 0) return;
       let attempt = 0;
@@ -181,8 +200,16 @@ function ProfilesPageInner() {
       const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
       const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
       setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
+      try {
+        const raw = localStorage.getItem("civicmatch.favorites");
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        setIsFavorite(arr.includes(chosen.user_id));
+      } catch { setIsFavorite(false); }
+      // Animate entire panel together as soon as profile is ready
+      setAnimateIn(false);
+      requestAnimationFrame(() => setAnimateIn(true));
     })();
-  }, [isAuthenticated, params, invitedIds, currentUserId]);
+  }, [isAuthenticated, invitedIds, currentUserId, params]);
 
   if (isAuthenticated === false || isAuthenticated === null) {
     return null;
@@ -251,7 +278,7 @@ function ProfilesPageInner() {
         if (targetUserId) next.add(targetUserId);
         return next;
       });
-      setMessage("Hey, I’d like to connect!");
+      setMessage("");
       setProfile(null);
       setTargetUserId(null);
       // If viewing a specific user via ?user=, navigate to /profiles to trigger fallback selection
@@ -277,38 +304,76 @@ function ProfilesPageInner() {
           {/* NAME: image (full) + basic info */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {/* Image full-bleed panel */}
-            <div className="card p-0 overflow-hidden md:col-span-1 relative h-[400px]">
-              {profile?.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatarUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
-              ) : (
-                <div className="absolute inset-0 bg-[color:var(--muted)]/40" />
-              )}
-              <div className="absolute bottom-3 left-3 text-lg md:text-xl font-semibold px-2.5 py-1.5 rounded bg-[color:var(--background)]/85 border border-divider">{profile?.name ?? ""}</div>
+            <div className={`card p-0 overflow-hidden md:col-span-1 relative h-[400px] transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
+              {/* Use a single overlay that fades together with the panel */}
+              <div className={`absolute inset-0 ${profile?.avatarUrl ? '' : 'bg-[color:var(--muted)]/40'} ${animateIn ? 'opacity-100' : 'opacity-0'} transition-opacity duration-600 ease-out`}>
+                {profile?.avatarUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={profile.avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className={`absolute bottom-3 left-3 text-lg md:text-xl font-semibold px-3 py-1.5 rounded-full bg-[color:var(--background)]/85 border border-divider transition-opacity duration-600 ease-out ${animateIn ? 'opacity-100' : 'opacity-0'}`}>
+                {profile?.name ?? ""}
+              </div>
             </div>
             {/* Basic info */}
-            <div className="card p-4 md:col-span-2 space-y-3">
+            <div className={`card p-4 md:col-span-2 space-y-3 transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} relative`} style={{ transitionDelay: '180ms' }}>
+              {targetUserId && (
+                <button
+                  className={`absolute top-3 right-3 h-9 w-9 rounded-full border flex items-center justify-center transition-colors ${isFavorite ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-transparent' : 'bg-[color:var(--background)]/80 border-divider'}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (!targetUserId) return;
+                    try {
+                      const raw = localStorage.getItem('civicmatch.favorites');
+                      const arr: string[] = raw ? JSON.parse(raw) : [];
+                      const set = new Set(arr);
+                      if (set.has(targetUserId)) { set.delete(targetUserId); setIsFavorite(false); }
+                      else { set.add(targetUserId); setIsFavorite(true); }
+                      localStorage.setItem('civicmatch.favorites', JSON.stringify(Array.from(set)));
+                    } catch {}
+                  }}
+                  aria-label={isFavorite ? 'Remove favorite' : 'Add to favorites'}
+                >
+                  <Star className="size-4" />
+                </button>
+              )}
               <div className="text-sm opacity-80">{profile?.location || ""}</div>
               <div className="flex flex-wrap gap-2 text-xs">
                 {(profile?.tags ?? []).map((t) => (
                   <span key={t} className="px-3 py-1 rounded-full border border-divider">{t}</span>
                 ))}
               </div>
-              <p className="text-sm leading-relaxed opacity-90">
-                {profile?.bio || ""}
-              </p>
-              <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                {(profile?.links ?? []).slice(0, 2).map((l, i) => (
-                  <a
-                    key={i}
-                    className="flex items-center gap-2 hover:underline break-words"
-                    href={normalizeUrl(l)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <LinkIcon className="size-4 opacity-70" /> {l}
-                  </a>
-                ))}
+              <div className="grid sm:grid-cols-2 gap-4 items-start">
+                <p className="text-sm leading-relaxed opacity-90">
+                  {profile?.bio || ""}
+                </p>
+                <ul className="space-y-2 text-sm">
+                  {(profile?.links ?? []).map((l, i) => {
+                    const href = normalizeUrl(l);
+                    let fav: string | null = null;
+                    try { const u = new URL(href); fav = `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`; } catch {}
+                    return (
+                      <li key={i} className="flex items-center gap-2 min-w-0">
+                        {fav ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={fav} alt="" className="size-4 rounded" />
+                        ) : (
+                          <LinkIcon className="size-4 opacity-70" />
+                        )}
+                        <a
+                          className="hover:underline break-words truncate"
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={l}
+                        >
+                          {l}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             </div>
           </div>
@@ -316,48 +381,37 @@ function ProfilesPageInner() {
           {/* SAME / FAME / AIM / GAME / Custom portfolio */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
             {/* SAME */}
-            <section className="card space-y-3 h-full flex flex-col min-h-[200px]">
+            <section className={`card space-y-3 h-full flex flex-col min-h-[200px] transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
               <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
-              <div className="flex flex-wrap gap-2 text-sm">
-                {(profile?.skills ?? []).map((s) => (
-                  <span key={s} className="px-3 py-1 rounded-full border border-divider">{s}</span>
-                ))}
-              </div>
+              <p className="text-sm">{(profile?.skills ?? []).join(", ")}</p>
             </section>
 
             {/* FAME */}
-            <section className="card space-y-3 h-full flex flex-col">
+            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '360ms' }}>
               <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Known For</h2></header>
               <p className="text-sm">{renderWithLinks(profile?.fame) }</p>
             </section>
 
             {/* AIM */}
-            <section className="card space-y-3 h-full flex flex-col">
+            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '540ms' }}>
               <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Focused On</h2></header>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(profile?.aim ?? []).slice(0,2).map((a, i) => (
-                  <div key={i} className="rounded-lg border p-3">
-                    <div className="font-medium text-sm">{a.title}</div>
-                    <div className="text-xs opacity-80">{a.summary}</div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm">{renderWithLinks((profile?.aim && profile.aim[0]?.title) || "")}</p>
             </section>
 
             {/* GAME */}
-            <section className="card space-y-3 h-full flex flex-col">
+            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '720ms' }}>
               <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
               <p className="text-sm">{renderWithLinks(profile?.game)}</p>
             </section>
 
             {/* Work Style */}
-            <section className="card space-y-3 h-full flex flex-col">
+            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '900ms' }}>
               <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
               <p className="text-sm">{renderWithLinks(profile?.workStyle)}</p>
             </section>
 
             {/* What do I need help with */}
-            <section className="card space-y-3 h-full flex flex-col">
+            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '1080ms' }}>
               <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
               <p className="text-sm">{renderWithLinks(profile?.helpNeeded)}</p>
             </section>
@@ -368,7 +422,12 @@ function ProfilesPageInner() {
         <aside className="hidden lg:block sticky top-20 h-[calc((100dvh-5rem)/2)]">
           <div className="card space-y-3 rounded-2xl h-full flex flex-col">
             <div className="font-semibold">Invite to connect</div>
-            <textarea className="w-full flex-1 min-h-[160px] rounded-2xl border bg-transparent p-3 text-sm resize-none" value={message} onChange={(e) => setMessage(e.target.value)} />
+            <textarea
+              className="w-full flex-1 min-h-[160px] rounded-2xl border bg-transparent p-3 text-sm resize-none"
+              placeholder={invitePlaceholder}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+            />
             <div className="mt-auto flex items-center gap-2">
               <button
                 className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
@@ -392,7 +451,13 @@ function ProfilesPageInner() {
 
       {/* Mobile composer */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t">
-        <textarea className="w-full rounded-lg border bg-transparent p-3 text-sm" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <textarea
+          className="w-full rounded-lg border bg-transparent p-3 text-sm"
+          rows={4}
+          placeholder={invitePlaceholder}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
         <div className="mt-2 flex items-center justify-between gap-2">
           <button
             className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
