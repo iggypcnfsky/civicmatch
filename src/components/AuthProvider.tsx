@@ -46,7 +46,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Optional: reconnect existing channels with new token
         supabase.realtime.getChannels().forEach((ch) => ch.send({ type: "broadcast", event: "system:refresh-jwt", payload: {} }));
         // Debug
-        // eslint-disable-next-line no-console
         console.log("[AuthProvider] Realtime auth token set");
       } catch {}
     }

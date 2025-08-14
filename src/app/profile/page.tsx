@@ -38,7 +38,7 @@ export default function ProfilePage() {
   const [links, setLinks] = useState<string[]>([]);
   const [skills, setSkills] = useState("");
   const [fame, setFame] = useState("");
-  const [aim, setAim] = useState<AimItem[]>([]);
+
   const [game, setGame] = useState("");
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [customSections, setCustomSections] = useState<CustomSection[]>([]);
@@ -102,7 +102,7 @@ export default function ProfilePage() {
     if (Array.isArray(d.links)) setLinks(asStringArray(d.links));
     setSkills(asString(d.skills) ?? "");
     setFame(asString(d.fame) ?? "");
-    setAim(Array.isArray(d.aim) ? d.aim : []);
+
     setAimSingle(Array.isArray(d.aim) && d.aim.length > 0 ? (d.aim[0]?.title || "") : "");
     setGame(asString(d.game) ?? "");
     setPortfolio(Array.isArray(d.portfolio) ? d.portfolio : []);
@@ -170,19 +170,7 @@ export default function ProfilePage() {
     }
   };
 
-  function getStorageKeyFromPublicUrl(publicUrl: string): { bucket: string; path: string } | null {
-    try {
-      const u = new URL(publicUrl);
-      const marker = "/storage/v1/object/public/";
-      const idx = u.pathname.indexOf(marker);
-      if (idx === -1) return null;
-      const rest = u.pathname.slice(idx + marker.length);
-      const [bucket, ...pathParts] = rest.split("/");
-      return { bucket, path: pathParts.join("/") };
-    } catch {
-      return null;
-    }
-  }
+
 
   async function uploadAvatar(file: File) {
     const { data: sess } = await supabase.auth.getSession();

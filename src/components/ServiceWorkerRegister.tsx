@@ -8,7 +8,7 @@ export default function ServiceWorkerRegister() {
     const register = async () => {
       try {
         await navigator.serviceWorker.register("/sw.js");
-      } catch (err) {
+      } catch {
         // no-op
       }
     };

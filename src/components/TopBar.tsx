@@ -22,7 +22,7 @@ function profileClasses(active: boolean): string {
 export default function TopBar() {
   const { status } = useAuth();
   const isAuthed = status === "authenticated";
-  const [_displayName, setDisplayName] = useState<string>("");
+  const [, setDisplayName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [showMsgToast, setShowMsgToast] = useState<boolean>(false);
   const [hasNewMessage, setHasNewMessage] = useState<boolean>(false);
@@ -74,7 +74,6 @@ export default function TopBar() {
       window.removeEventListener("civicmatch:profile-updated", onProfileUpdated);
       window.removeEventListener("storage", onProfileUpdated);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // When auth becomes available, refresh profile cache once

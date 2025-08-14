@@ -554,6 +554,105 @@ Example `data` payloads
 - **Images**: Next/Image; responsive sizes; AVIF/WEBP
 - **Bundles**: route‑level code splitting; avoid global client state
 
+### Database access summary and optimization plan
+
+This section documents where the app hits the database (Supabase PostgREST) and how often, followed by safe, incremental optimizations that do not interrupt service.
+
+#### Where we query (by component/page)
+- Top bar (`src/components/TopBar.tsx`)
+  - Profile cache refresh: up to 1–2 reads on auth becoming available and/or profile‑updated event
+    - `profiles.select('username, data').eq('user_id', uid).maybeSingle()`
+  - Realtime INSERT handler: 0–1 read per external incoming message (when not on `/messages`)
+    - `conversations.select('id').eq('id', conversation_id).maybeSingle()`
+  - Polling fallback (only when enabled):
+    - Initial check: 1 read
+    - Interval: 1 read every 12s
+    - `messages.select('id, sender_id, created_at').gt('created_at', baseline).neq('sender_id', uid).order('created_at', { desc }).limit(1)`
+
+- Explore (home) page (`src/app/page.tsx`)
+  - Connections for current user: 1 read
+    - `connections.select('addressee_id')`
+  - Profiles feed (first page): 1 read per page fetch
+    - `profiles.select('user_id, username, data, created_at') ...`
+  - Ensure profile on first sign‑in: up to 1 read + 1 write (first‑time only)
+    - `profiles.select('user_id').eq('user_id', user.id).limit(1)` then conditional `profiles.insert(...)`
+
+- Messages list (`src/app/messages/page.tsx`)
+  - Conversations list: 1 read
+    - `conversations.select('id, updated_at, data')`
+  - Participant profiles for conversations: 1 read
+    - `profiles.select('user_id, username, data').in('user_id', [...])`
+  - Recent messages for the active thread: 1 read per load/refresh
+    - `messages.select('id, sender_id, created_at, data').eq('conversation_id', ...)`
+  - Send message: 1 write per send
+    - `messages.insert([...])`
+
+- Message detail (`src/app/messages/[id]/page.tsx`)
+  - Conversation metadata: 1 read
+    - `conversations.select('data, updated_at').eq('id', ...)`
+  - Other participant profile: 1 read
+    - `profiles.select('username, data').eq('user_id', ...)`
+  - Messages list: 1 read per load/refresh
+    - `messages.select('id, sender_id, created_at, data').eq('conversation_id', ...)`
+  - Send message: 1 write per send
+    - `messages.insert([...])`
+
+- Profiles view (browse + invite) (`src/app/profiles/page.tsx`)
+  - My connections: 1 read
+    - `connections.select('addressee_id')`
+  - Profiles feed: 1 read per page fetch
+    - `profiles.select('user_id, username, data') ...`
+  - Count (for total): 1 head count read (exact)
+    - `profiles.select('*', { count: 'exact', head: true })`
+  - Invite workflow: up to 1–3 operations per invite
+    - Check conversation: `conversations.select('id').contains('data->participantIds', ...)`
+    - Create conversation if missing: `conversations.insert(...)` (write)
+    - Insert invite message: `messages.insert({...})` (write)
+    - Record/refresh connection: `connections.upsert(...)` (write)
+
+- My profile (edit) (`src/app/profile/page.tsx`)
+  - Load my profile: 1 read
+    - `profiles.select('data').eq('user_id', user.id).single()`
+  - Save profile: 1 write per save
+    - `profiles.update({ data: ... }).eq('user_id', user.id)`
+  - Avatar upload: Storage operation (not DB), then public URL retrieval
+
+Notes
+- Auth calls like `auth.getSession()`/`auth.getUser()` hit Supabase Auth, not PostgREST, but they still incur network requests.
+- Realtime subscriptions maintain a websocket; DB reads happen only where noted above (e.g., validation on INSERT handler).
+
+#### Minimization strategies (no service interruption)
+- Reduce redundant profile fetches in `TopBar`
+  - Keep the cached `displayName`/`avatarUrl` as the source of truth on first paint.
+  - Trigger a single debounced refresh on auth change or explicit `profile-updated` events instead of multiple effects.
+
+- Prefer `useAuth()` session data over repeated `auth.getUser()`/`auth.getSession()`
+  - Read the `user.id` from the existing context to avoid extra Auth round‑trips inside effects (e.g., `TopBar` polling, invite flows).
+
+- Make polling conditional and lighter
+  - Disable polling when the Realtime channel is subscribed and healthy; enable only as a fallback (with exponential backoff) or increase interval to ≥60s.
+  - Keep the `.limit(1)` pattern and guard by pathname as already implemented.
+
+- Batch/merge reads where possible
+  - Conversations + participant profiles: keep a single `IN (...)` fetch for profiles (already present) and avoid per‑participant lookups.
+  - Profiles feed: use a single API route (server) that returns `{ items, nextCursor, myConnectionsSubset }` to avoid separate client reads.
+
+- Avoid expensive exact counts on hot paths
+  - Replace `profiles` exact counts with either omission (if not essential) or an approximate indicator (e.g., show until empty), or serve counts via a cached server endpoint.
+
+- Shift list reads to server (RSC/route handlers) with HTTP caching
+  - Move feed/conversation lists into server routes and apply `Cache-Control`/ISR where compatible with auth.
+  - This reduces client round‑trips and enables response shaping (fewer over‑fetches).
+
+- Index and query hygiene (already mostly in place)
+  - Ensure `messages(created_at desc)`, `messages(sender_id)`, and `profiles(data GIN)` indexes exist and align with filters; avoid unindexed filters.
+  - Keep `maybeSingle()`/`limit(1)` usage for point lookups.
+
+- Session‑scoped in‑memory caches
+  - Cache small sets (e.g., my connection addressee IDs) in memory for the session and refresh on change events to avoid re‑reads on every navigation.
+
+All of the above can be rolled out incrementally, guarded by existing events (`auth-changed`, `profile-updated`) and without altering user‑visible behavior.
+
 ## Testing & quality
 
 - **Unit**: Vitest + React Testing Library

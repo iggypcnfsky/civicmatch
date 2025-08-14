@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { SlidersHorizontal, X, Star, Mail, Briefcase, Wrench, MapPin, UsersRound, Clock, UserRound } from "lucide-react";
+import { SlidersHorizontal, X, Star, UserRound } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
@@ -24,7 +24,7 @@ export default function ExplorePage() {
   const [items, setItems] = useState<Profile[]>([]);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => {
+  const [favoriteIds] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem("civicmatch.favorites");
       return new Set<string>(raw ? JSON.parse(raw) : []);
@@ -337,57 +337,28 @@ export default function ExplorePage() {
     <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-3 md:pt-4">
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px] items-start">
-        {/* Masonry-like grid using CSS columns */}
+        {/* Profile Pill list */}
         <section className="min-w-0">
-          <div className="columns-1 sm:columns-2 xl:columns-3 gap-4">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {items.map((p, idx) => (
-              <article
+              <Link
                 key={p.id}
-                className={`mb-4 break-inside-avoid rounded-2xl border border-divider overflow-hidden shadow-sm transition-all duration-500 ease-out ${invitedIds.has(p.id) ? "opacity-50" : "hover:-translate-y-0.5"} ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}
-                style={{ transitionDelay: `${idx * 30}ms` }}
+                href={`/profiles?user=${encodeURIComponent(p.id)}`}
+                className={`inline-flex items-center gap-2 rounded-full border border-divider bg-[color:var(--background)] pr-3 pl-1.5 py-1.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 transition-all duration-300 ${invitedIds.has(p.id) ? "opacity-50" : "hover:-translate-y-0.5"} ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
+                style={{ transitionDelay: `${idx * 20}ms` }}
               >
-                <Link href={`/profiles?user=${encodeURIComponent(p.id)}`} className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 rounded-2xl group">
-                  <div className="relative aspect-[4/3] bg-[color:var(--muted)]/40 overflow-hidden">
-                    {p.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.avatarUrl} alt={p.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-105" />
-                    ) : null}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
-                    <div className="absolute top-3 left-3 flex flex-row flex-wrap items-start gap-1 max-w-[85%]">
-                      {(p.tags && p.tags.length > 0 ? p.tags : [p.role]).slice(0,3).map((t, i) => (
-                        <span key={i} className="inline-flex items-center rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-xs whitespace-nowrap">
-                          {t}
-                        </span>
-                      ))}
-                      {invitedIds.has(p.id) && (
-                        <span className="inline-flex items-center rounded-full bg-[color:var(--background)]/90 border border-divider px-2 py-1 text-[10px] gap-1 whitespace-nowrap">
-                          <Mail className="size-3" />
-                          Invited
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      className={`absolute top-3 right-3 h-8 w-8 rounded-full border flex items-center justify-center ${favoriteIds.has(p.id) ? "bg-[color:var(--accent)] text-[color:var(--background)] border-transparent" : "bg-[color:var(--background)]/80 border-divider"}`}
-                      aria-label="Favorite"
-                      onClick={(e)=>{
-                        e.preventDefault();
-                        setFavoriteIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
-                          localStorage.setItem("civicmatch.favorites", JSON.stringify(Array.from(next)));
-                          return next;
-                        });
-                      }}
-                    >
-                      <Star className="size-4" />
-                    </button>
-                  </div>
-                  <div className="bg-[color:var(--background)] text-sm p-3 space-y-1">
-                    <div className="font-medium">{p.name}</div>
-                    <div className="opacity-80 line-clamp-2">{p.bio}</div>
-                  </div>
-                </Link>
-              </article>
+                <span className="relative inline-flex">
+                  {p.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.avatarUrl} alt={p.name} className="h-10 w-10 rounded-full object-cover" />
+                  ) : (
+                    <span className="h-10 w-10 rounded-full bg-[color:var(--muted)]/40 inline-flex items-center justify-center">
+                      <UserRound className="size-4 opacity-70" />
+                    </span>
+                  )}
+                </span>
+                <span className="text-sm font-medium whitespace-nowrap">{p.name}</span>
+              </Link>
             ))}
           </div>
           {isLoading && <div className="py-4 text-center text-sm opacity-70">Loading…</div>}

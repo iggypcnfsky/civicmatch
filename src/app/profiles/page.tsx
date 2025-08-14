@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle, Star } from "lucide-react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle, Star, UserRound } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -33,7 +33,7 @@ function ProfilesPageInner() {
   const [profile, setProfile] = useState<ViewProfile | null>(null);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+
   const [animateIn, setAnimateIn] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const params = useSearchParams();
@@ -58,7 +58,7 @@ function ProfilesPageInner() {
     if (v && typeof v === "object") return Object.values(v).filter((x): x is string => typeof x === "string");
     return [];
   };
-  const locationLabel = (v: unknown): string => {
+  const locationLabel = useCallback((v: unknown): string => {
     if (typeof v === "string") return v;
     if (v && typeof v === "object") {
       const o = v as { city?: unknown; country?: unknown };
@@ -67,7 +67,7 @@ function ProfilesPageInner() {
       if (city && country) return `${city}, ${country}`;
     }
     return "";
-  };
+  }, []);
 
   const normalizeUrl = (url: string): string => {
     if (!url) return "";
@@ -98,7 +98,7 @@ function ProfilesPageInner() {
 
   // Load invited (pending) connections for current user to avoid showing already-invited profiles
   useEffect(() => {
-    setMounted(true);
+
     (async () => {
       if (!isAuthenticated) return;
       const { data: u } = await supabase.auth.getUser();
@@ -155,7 +155,7 @@ function ProfilesPageInner() {
         requestAnimationFrame(() => setAnimateIn(true));
       }
     })();
-  }, [isAuthenticated, params]);
+  }, [isAuthenticated, params, locationLabel]);
 
   // Fallback random profile when there is no ?user param
   useEffect(() => {
@@ -209,7 +209,7 @@ function ProfilesPageInner() {
       setAnimateIn(false);
       requestAnimationFrame(() => setAnimateIn(true));
     })();
-  }, [isAuthenticated, invitedIds, currentUserId, params]);
+  }, [isAuthenticated, invitedIds, currentUserId, params, locationLabel]);
 
   if (isAuthenticated === false || isAuthenticated === null) {
     return null;
@@ -301,120 +301,171 @@ function ProfilesPageInner() {
       <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
         {/* Left: profile sections */}
         <section className="space-y-4">
-          {/* NAME: image (full) + basic info */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Image full-bleed panel */}
-            <div className={`card p-0 overflow-hidden md:col-span-1 relative h-[400px] transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
-              {/* Use a single overlay that fades together with the panel */}
-              <div className={`absolute inset-0 ${profile?.avatarUrl ? '' : 'bg-[color:var(--muted)]/40'} ${animateIn ? 'opacity-100' : 'opacity-0'} transition-opacity duration-600 ease-out`}>
-                {profile?.avatarUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
+          {/* Profile Pill + Basic info */}
+          <div className="grid gap-4">
+            {/* Profile Pill */}
+            <div className={`card p-4 transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
+              <div className="flex items-center gap-3">
+                <span className="relative inline-flex">
+                  {profile?.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={profile.avatarUrl} alt={profile.name} className="h-12 w-12 rounded-full object-cover aspect-square flex-shrink-0" />
+                  ) : (
+                    <span className="h-12 w-12 rounded-full bg-[color:var(--muted)]/40 inline-flex items-center justify-center aspect-square flex-shrink-0">
+                      <UserRound className="size-5 opacity-70" />
+                    </span>
+                  )}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-lg font-semibold truncate">{profile?.name ?? ""}</h1>
+                  {profile?.location && (
+                    <div className="text-sm opacity-80">{profile.location}</div>
+                  )}
+                </div>
+                {targetUserId && (
+                  <button
+                    className={`h-9 w-9 rounded-full border flex items-center justify-center transition-colors ${isFavorite ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-transparent' : 'bg-[color:var(--background)]/80 border-divider'}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (!targetUserId) return;
+                      try {
+                        const raw = localStorage.getItem('civicmatch.favorites');
+                        const arr: string[] = raw ? JSON.parse(raw) : [];
+                        const set = new Set(arr);
+                        if (set.has(targetUserId)) { set.delete(targetUserId); setIsFavorite(false); }
+                        else { set.add(targetUserId); setIsFavorite(true); }
+                        localStorage.setItem('civicmatch.favorites', JSON.stringify(Array.from(set)));
+                      } catch {}
+                    }}
+                    aria-label={isFavorite ? 'Remove favorite' : 'Add to favorites'}
+                  >
+                    <Star className="size-4" />
+                  </button>
                 )}
               </div>
-              <div className={`absolute bottom-3 left-3 text-lg md:text-xl font-semibold px-3 py-1.5 rounded-full bg-[color:var(--background)]/85 border border-divider transition-opacity duration-600 ease-out ${animateIn ? 'opacity-100' : 'opacity-0'}`}>
-                {profile?.name ?? ""}
-              </div>
-            </div>
-            {/* Basic info */}
-            <div className={`card p-4 md:col-span-2 space-y-3 transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} relative`} style={{ transitionDelay: '180ms' }}>
-              {targetUserId && (
-                <button
-                  className={`absolute top-3 right-3 h-9 w-9 rounded-full border flex items-center justify-center transition-colors ${isFavorite ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-transparent' : 'bg-[color:var(--background)]/80 border-divider'}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (!targetUserId) return;
-                    try {
-                      const raw = localStorage.getItem('civicmatch.favorites');
-                      const arr: string[] = raw ? JSON.parse(raw) : [];
-                      const set = new Set(arr);
-                      if (set.has(targetUserId)) { set.delete(targetUserId); setIsFavorite(false); }
-                      else { set.add(targetUserId); setIsFavorite(true); }
-                      localStorage.setItem('civicmatch.favorites', JSON.stringify(Array.from(set)));
-                    } catch {}
-                  }}
-                  aria-label={isFavorite ? 'Remove favorite' : 'Add to favorites'}
-                >
-                  <Star className="size-4" />
-                </button>
+              
+              {/* Tags */}
+              {(profile?.tags ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs mt-3">
+                  {profile?.tags.map((t) => (
+                    <span key={t} className="px-3 py-1 rounded-full border border-divider">{t}</span>
+                  ))}
+                </div>
               )}
-              <div className="text-sm opacity-80">{profile?.location || ""}</div>
-              <div className="flex flex-wrap gap-2 text-xs">
-                {(profile?.tags ?? []).map((t) => (
-                  <span key={t} className="px-3 py-1 rounded-full border border-divider">{t}</span>
-                ))}
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4 items-start">
-                <p className="text-sm leading-relaxed opacity-90">
-                  {profile?.bio || ""}
-                </p>
-                <ul className="space-y-2 text-sm">
-                  {(profile?.links ?? []).map((l, i) => {
-                    const href = normalizeUrl(l);
-                    let fav: string | null = null;
-                    try { const u = new URL(href); fav = `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`; } catch {}
-                    return (
-                      <li key={i} className="flex items-center gap-2 min-w-0">
-                        {fav ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={fav} alt="" className="size-4 rounded" />
-                        ) : (
-                          <LinkIcon className="size-4 opacity-70" />
-                        )}
-                        <a
-                          className="hover:underline break-words truncate"
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={l}
-                        >
-                          {l}
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
+              
+              {/* Bio and Links */}
+              <div className="grid sm:grid-cols-2 gap-4 items-start mt-4">
+                <div className="text-sm leading-relaxed opacity-90">
+                  {profile?.bio ? renderWithLinks(profile.bio) : (
+                    <span className="italic opacity-60">No information from the founder</span>
+                  )}
+                </div>
+                {(profile?.links ?? []).length > 0 && (
+                  <ul className="space-y-2 text-sm">
+                    {profile?.links.map((l, i) => {
+                      const href = normalizeUrl(l);
+                      let fav: string | null = null;
+                      try { const u = new URL(href); fav = `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`; } catch {}
+                      return (
+                        <li key={i} className="flex items-center gap-2 min-w-0">
+                          {fav ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={fav} alt="" className="size-4 rounded" />
+                          ) : (
+                            <LinkIcon className="size-4 opacity-70" />
+                          )}
+                          <a
+                            className="hover:underline break-words truncate"
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={l}
+                          >
+                            {l}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             </div>
           </div>
 
-          {/* SAME / FAME / AIM / GAME / Custom portfolio */}
+          {/* Profile sections - only show if they have data */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
-            {/* SAME */}
-            <section className={`card space-y-3 h-full flex flex-col min-h-[200px] transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
-              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
-              <p className="text-sm">{(profile?.skills ?? []).join(", ")}</p>
-            </section>
+            {(() => {
+              const sections = [];
+              let delayIndex = 0;
 
-            {/* FAME */}
-            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '360ms' }}>
-              <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Known For</h2></header>
-              <p className="text-sm">{renderWithLinks(profile?.fame) }</p>
-            </section>
+              // Skills & What I Do - only show if skills exist
+              if ((profile?.skills ?? []).length > 0) {
+                sections.push(
+                  <section key="skills" className={`card space-y-3 h-full flex flex-col min-h-[200px] transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
+                    <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
+                    <p className="text-sm">{profile?.skills.join(", ")}</p>
+                  </section>
+                );
+                delayIndex++;
+              }
 
-            {/* AIM */}
-            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '540ms' }}>
-              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Focused On</h2></header>
-              <p className="text-sm">{renderWithLinks((profile?.aim && profile.aim[0]?.title) || "")}</p>
-            </section>
+              // What I'm Known For - only show if fame exists
+              if (profile?.fame && profile.fame.trim()) {
+                sections.push(
+                  <section key="fame" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
+                    <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Known For</h2></header>
+                    <p className="text-sm">{renderWithLinks(profile.fame)}</p>
+                  </section>
+                );
+                delayIndex++;
+              }
 
-            {/* GAME */}
-            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '720ms' }}>
-              <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
-              <p className="text-sm">{renderWithLinks(profile?.game)}</p>
-            </section>
+              // What I'm Focused On - only show if aim exists
+              if (profile?.aim && profile.aim[0]?.title && profile.aim[0].title.trim()) {
+                sections.push(
+                  <section key="aim" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
+                    <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Focused On</h2></header>
+                    <p className="text-sm">{renderWithLinks(profile.aim[0].title)}</p>
+                  </section>
+                );
+                delayIndex++;
+              }
 
-            {/* Work Style */}
-            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '900ms' }}>
-              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
-              <p className="text-sm">{renderWithLinks(profile?.workStyle)}</p>
-            </section>
+              // Long-term Strategy - only show if game exists
+              if (profile?.game && profile.game.trim()) {
+                sections.push(
+                  <section key="game" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
+                    <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
+                    <p className="text-sm">{renderWithLinks(profile.game)}</p>
+                  </section>
+                );
+                delayIndex++;
+              }
 
-            {/* What do I need help with */}
-            <section className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '1080ms' }}>
-              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
-              <p className="text-sm">{renderWithLinks(profile?.helpNeeded)}</p>
-            </section>
+              // Work Style - only show if workStyle exists
+              if (profile?.workStyle && profile.workStyle.trim()) {
+                sections.push(
+                  <section key="workStyle" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
+                    <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
+                    <p className="text-sm">{renderWithLinks(profile.workStyle)}</p>
+                  </section>
+                );
+                delayIndex++;
+              }
+
+              // What do I need help with - only show if helpNeeded exists
+              if (profile?.helpNeeded && profile.helpNeeded.trim()) {
+                sections.push(
+                  <section key="helpNeeded" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
+                    <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
+                    <p className="text-sm">{renderWithLinks(profile.helpNeeded)}</p>
+                  </section>
+                );
+                delayIndex++;
+              }
+
+              return sections;
+            })()}
           </div>
         </section>
 
