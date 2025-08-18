@@ -29,6 +29,8 @@ Civic Match helps changemakers find the right co‑founders and collaborators fo
 - **Icons**: Lucide
 - **Dates**: date-fns
 - **Messaging realtime**: Supabase Realtime (primary) or Pusher (fallback)
+- **Email system**: Resend + React Email for transactional and campaign emails
+- **Scheduling**: Vercel Cron for automated email campaigns and background tasks
 - **Auth & DB (default path)**: Supabase (Postgres + Auth + Storage + Realtime)
   - Alt path: Prisma + Postgres (Neon/PlanetScale equivalent) + NextAuth
 
@@ -44,20 +46,24 @@ Client (RSC + selective CSR)
    ├─ Next.js App Router (route handlers, server actions)
    │     ├─ Auth (Supabase) + RLS policies
    │     ├─ Domain services (profiles, matching, messaging, connections)
+   │     ├─ Email system (Resend + React Email templates)
+   │     ├─ Cron jobs (Vercel Cron for automated campaigns)
    │     └─ Validation (Zod)
    │
-   ├─ Database (Postgres / Supabase)
+   ├─ Database (Postgres / Supabase) + email tracking tables
    ├─ Realtime (Supabase Realtime) for conversations & presence
-   └─ Storage (avatars, images) via Supabase Storage
+   ├─ Storage (avatars, images) via Supabase Storage
+   └─ Email infrastructure (Resend API + webhooks)
 ```
 
 ## Domain model (MVP)
 
 - **User**: id, email, createdAt, onboarded
-- **Profile**: userId, displayName, username, bio, location, availability, avatarUrl, values[], skills[], causes[]
+- **Profile**: userId, displayName, username, bio, location, availability, avatarUrl, values[], skills[], causes[], emailPreferences{}, weeklyMatchHistory{}
 - **Connection**: id, requesterId, addresseeId, status(pending|accepted|declined|blocked), createdAt
 - **Conversation**: id, participantIds[], createdAt, updatedAt
 - **Message**: id, conversationId, senderId, text, attachments[], createdAt, readAt?
+- **EmailLog**: id, userId, emailType, resendId, status, createdAt, data (separate table for analytics)
 - **SavedSearch** (optional later): id, userId, filters, createdAt
 
 Indexes focus on username, search facets (skills/causes), and conversationId for fast messaging.
@@ -69,7 +75,8 @@ Indexes focus on username, search facets (skills/causes), and conversationId for
 - **Matching & search**: filter by values, skills, causes; sort by a rule‑based score
 - **Messaging**: 1:1 conversations; realtime updates; optimistic send
 - **Connections**: request/accept/block; dashboard overview
-- **Notifications**: in‑app (toast/badge); email later
+- **Email system**: welcome emails, password resets, weekly reminders, matching suggestions
+- **Notifications**: in‑app (toast/badge); email campaigns and transactional messages
 
 ## Matching approach (rule‑based MVP)
 
@@ -670,6 +677,439 @@ All of the above can be rolled out incrementally, guarded by existing events (`a
 
 - `.env.local` for local dev, `.env` for CI; never commit secrets
 - Key variables (Supabase path): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, service role for migrations only
+- Email variables: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET`, `EMAIL_ENABLED`, `EMAIL_TEST_MODE`
+
+## Email System (Resend + React Email)
+
+Civic Match uses Resend as the primary email service provider combined with React Email for template creation, enabling transactional emails, user engagement campaigns, and automated lifecycle communications.
+
+### Overview & Goals
+
+- **Transactional emails**: Welcome messages, password resets, connection notifications
+- **Engagement emails**: Weekly profile completion reminders, user matching suggestions
+- **Automated campaigns**: Weekly matching emails to connect users with compatible collaborators
+- **Developer experience**: Type-safe email templates using React components, consistent branding
+- **Reliability**: Delivery tracking, bounce handling, and webhook-based event processing
+
+### Technical Stack Integration
+
+- **Email API**: Resend for delivery infrastructure and analytics
+- **Template engine**: React Email for component-based email templates
+- **Scheduling**: Vercel Cron (preferred) or Supabase Edge Functions for automated campaigns
+- **Event tracking**: Resend webhooks for delivery status, opens, clicks, bounces
+- **Authentication**: Integrate with Supabase Auth for password reset flows
+
+### Email Types & Triggers
+
+#### 1. Welcome Email (Immediate)
+- **Trigger**: New user signup (email/password or Google OAuth)
+- **Template**: `WelcomeEmail.tsx`
+- **Content**: 
+  - Personalized welcome message "Welcome [FirstName]!" (extracts first name from displayName)
+  - CivicMatch logo (email-logo.png from https://civicmatch.app domain)
+  - Numbered step guide with table-based layout for email client compatibility:
+    1. Complete your profile → `/profile`
+    2. Start exploring → `/` (main explore page)
+    3. Connect and collaborate (simplified messaging info)
+    4. Stay engaged (newsletter signup info)
+  - Light gray "Explore Profiles" CTA button
+  - Email signature with logo from "Iggy, CivicMatch"
+  - All URLs point to production domain (https://civicmatch.app)
+- **Implementation**: 
+  - API route `/api/email/welcome` triggered after successful signup
+  - Email/password: Called directly from `handleSignup()` function
+  - Google OAuth: Called from `ensureProfileForCurrentUser()` when `isNewUser = true`
+  - Uses production domain for all links and assets to avoid CORS issues
+
+#### 2. Password Reset Email (Immediate)
+- **Trigger**: User requests password reset via Supabase Auth
+- **Template**: `PasswordResetEmail.tsx`
+- **Content**:
+  - Security-focused messaging
+  - Reset link with expiration time
+  - Alternative contact methods if not requested
+- **Implementation**: Supabase Auth hooks + custom email template override
+
+#### 3. Profile Completion Reminder (Weekly)
+- **Trigger**: Cron job checking incomplete profiles
+- **Template**: `ProfileReminderEmail.tsx`
+- **Content**:
+  - Personalized completion percentage
+  - Specific missing fields (skills, causes, bio, etc.)
+  - Benefits of complete profile (better matches)
+  - Direct link to profile editor
+- **Implementation**: Weekly cron → database query → batch email send
+
+#### 4. Weekly Matching Email (Weekly)
+- **Trigger**: Cron job for active users without recent connections
+- **Template**: `WeeklyMatchEmail.tsx`
+- **Content**:
+  - **Single focused match**: Simplified to showcase one carefully selected user
+  - **Complete profile display**: All available profile sections (Skills, What I'm Known For, What I'm Focused On, Long-term Strategy, Work Style, What do I need help with)
+  - **Visual profile cards**: Profile pictures for both current user and matched user
+  - **Conditional rendering**: Only shows sections that have content to avoid empty panels
+  - **Match reasoning**: Shared values/skills/causes with detailed explanations
+  - **Clear CTAs**: Send Message and View Profile buttons with Lucide icons
+  - **Professional branding**: DM Sans font, CivicMatch colors, signature from "Iggy, CivicMatch"
+- **Implementation**: Weekly cron → matching algorithm → batch email send
+- **Future enhancement**: Google Meet event creation for suggested connections
+
+### Database Schema Extensions
+
+**Approach**: Minimize schema complexity by leveraging existing `profiles.data` JSONB for user preferences and matching history, while keeping email logs separate for performance and analytics.
+
+#### Email Logs Table (Separate - Required for Performance)
+```sql
+-- Email tracking for analytics and delivery monitoring
+create table if not exists public.email_logs (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  email_type   text not null, -- welcome|password_reset|profile_reminder|weekly_match
+  resend_id    text, -- Resend email ID for tracking
+  status       text not null default 'sent', -- sent|delivered|opened|clicked|bounced|failed
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  data         jsonb not null default '{}' -- template_version, recipient_email, etc.
+);
+create index if not exists email_logs_user_id_idx on public.email_logs(user_id);
+create index if not exists email_logs_type_idx on public.email_logs(email_type);
+create index if not exists email_logs_resend_id_idx on public.email_logs(resend_id);
+create index if not exists email_logs_created_at_idx on public.email_logs(created_at desc);
+```
+
+#### Extended Profiles Data Schema
+```json
+// Enhanced profiles.data structure
+{
+  // Existing profile fields
+  "displayName": "Ada Lovelace",
+  "bio": "I connect data and policy for climate innovation.",
+  "location": { "city": "London", "country": "UK" },
+  "tags": ["Social Entrepreneur", "Policy Expert"],
+  "values": ["Integrity", "Impact", "Curiosity"],
+  "skills": ["Data Science", "Policy", "Product"],
+  "causes": ["Climate", "Civic Tech"],
+  "avatarUrl": "https://example.com/avatar.jpg",
+  
+  // Additional profile sections (for comprehensive email display)
+  "fame": "Built data platforms for 3 climate NGOs, featured in Tech for Good",
+  "aim": [{ 
+    "title": "Scale climate data accessibility across Europe", 
+    "summary": "Focus on policy integration" 
+  }],
+  "game": "Long-term: establish climate data consortium with EU backing",
+  "workStyle": "Collaborative, weekly check-ins, values-driven approach",
+  "helpNeeded": "Seeking technical co-founder and climate policy advisor",
+  
+  // Email preferences (replaces user_email_preferences table)
+  "emailPreferences": {
+    "weeklyMatchingEnabled": true,
+    "profileRemindersEnabled": true,
+    "connectionNotifications": true,
+    "frequency": "weekly",
+    "preferredTime": "09:00",
+    "timezone": "America/New_York"
+  },
+  
+  // Weekly matching history (replaces weekly_match_history table)
+  "weeklyMatchHistory": {
+    "sentMatches": {
+      "2024-01": ["uuid1", "uuid2", "uuid3"],
+      "2024-02": ["uuid4", "uuid5"]
+    },
+    "lastSentWeek": "2024-02",
+    "totalSent": 5
+  }
+}
+```
+
+#### Design Rationale: JSONB vs Separate Tables
+
+**Email Preferences → JSONB** ✅
+- **Why**: One-to-one with user, infrequent queries, simple booleans, schema flexibility
+- **Queries**: `profiles.data->>'emailPreferences'->>'weeklyMatchingEnabled' = 'true'`
+- **Updates**: `UPDATE profiles SET data = jsonb_set(data, '{emailPreferences,weeklyMatchingEnabled}', 'false') WHERE user_id = $1`
+
+**Weekly Match History → JSONB** ✅
+- **Why**: Low volume (12-20 UUIDs per month), primary use is duplicate prevention
+- **Queries**: `profiles.data->'weeklyMatchHistory'->'sentMatches'->'2024-02' ? 'target-uuid'`
+- **Updates**: Append to monthly array, simple deduplication logic
+
+**Email Logs → Separate Table** ✅
+- **Why**: High volume, time-series analytics, frequent webhook updates, retention policies
+- **Queries**: Complex aggregations, date ranges, delivery analytics
+- **Performance**: Dedicated indexes, efficient pagination, analytics queries
+
+This hybrid approach **reduces schema complexity by 66%** (3 tables → 1 table) while maintaining query performance where it matters most.
+
+### File Structure & Implementation
+
+```
+src/
+  lib/
+    email/
+      resend.ts           # Resend client configuration
+      templates/          # React Email templates
+        WelcomeEmail.tsx
+        PasswordResetEmail.tsx
+        ProfileReminderEmail.tsx
+        WeeklyMatchEmail.tsx
+        shared/
+          Layout.tsx      # Common email layout with DM Sans font
+          Header.tsx      # Email header with inline SVG logo
+          Footer.tsx      # Unsubscribe links
+          Icons.tsx       # Lucide icons as React components for emails
+        index.ts          # Barrel exports for templates
+      services/
+        EmailLogService.ts # Email logging with Supabase (anon key + RLS)
+        EmailService.ts   # Email sending abstraction
+        MatchingService.ts # User matching logic for emails
+      utils/
+        emailValidation.ts # Email content validation
+  app/
+    api/
+      webhooks/
+        resend/
+          route.ts        # Webhook handler for email events
+      email/
+        send/
+          route.ts        # Manual email sending endpoint
+        test/
+          route.ts        # Test email sending (dev only)
+      cron/
+        weekly-reminders/
+          route.ts        # Profile completion reminders
+        weekly-matching/
+          route.ts        # Weekly user matching emails
+  types/
+    email.ts             # Email-related TypeScript types
+```
+
+### Environment Configuration
+
+Add to `.env.local`:
+```bash
+# Resend Configuration
+RESEND_API_KEY=re_xxxxxxxxxxxx
+RESEND_FROM_EMAIL=noreply@civicmatch.app
+RESEND_WEBHOOK_SECRET=whsec_xxxxxxxxxxxx
+
+# Email Settings
+EMAIL_ENABLED=true
+EMAIL_TEST_MODE=false # Set to true in development
+
+# Note: Uses existing NEXT_PUBLIC_SUPABASE_ANON_KEY for email logging
+# No service role needed - safer approach with proper RLS policies
+```
+
+### Implementation Phases
+
+#### Phase 1: Core Infrastructure (MVP)
+1. **Setup Resend integration**
+   - Install `resend` and `@react-email/components`
+   - Configure Resend client with API key
+   - Create base email layout components
+   - Add email logs table migration
+
+2. **Welcome email implementation**
+   - Create `WelcomeEmail.tsx` template
+   - Integrate with auth signup flow
+   - Test email delivery and tracking
+
+3. **Password reset integration**
+   - Override Supabase Auth email templates
+   - Create custom `PasswordResetEmail.tsx`
+   - Test reset flow end-to-end
+
+#### Phase 2: Automated Campaigns
+1. **Weekly profile reminders**
+   - Create cron job endpoint
+   - Implement profile completion analysis
+   - Design and test `ProfileReminderEmail.tsx`
+   - Add user preferences for email frequency
+
+2. **Email preferences management**
+   - Add preferences to user profile page
+   - Implement unsubscribe handling
+   - Create preference update API
+
+#### Phase 3: Matching & Advanced Features
+1. **Weekly matching emails**
+   - Implement matching algorithm for email suggestions
+   - Create `WeeklyMatchEmail.tsx` with profile previews
+   - Add match history tracking to prevent duplicates
+   - Test and optimize matching logic
+
+2. **Email analytics & optimization**
+   - Implement webhook event processing
+   - Add email performance metrics
+   - A/B testing infrastructure for subject lines
+   - Bounce and unsubscribe handling
+
+### Cron Job Strategy
+
+#### Vercel Cron (Preferred)
+- **Advantages**: Integrated with Next.js deployment, reliable scheduling, zero additional infrastructure
+- **Configuration**: `vercel.json` cron configuration
+- **Implementation**: API routes at `/api/cron/[job-name]`
+- **Security**: Vercel-signed headers for authentication
+
+```json
+// vercel.json
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-reminders",
+      "schedule": "0 9 * * 1" // Monday 9 AM UTC
+    },
+    {
+      "path": "/api/cron/weekly-matching",
+      "schedule": "0 10 * * 3" // Wednesday 10 AM UTC
+    }
+  ]
+}
+```
+
+#### Supabase Edge Functions (Alternative)
+- **Advantages**: Database proximity, direct Postgres access, shared environment
+- **Configuration**: Supabase CLI deployment
+- **Implementation**: TypeScript functions with pg_cron integration
+- **Security**: Supabase service role authentication
+
+### Email Template Design Principles
+
+1. **Consistent branding**: Shared layout with CivicMatch colors and typography
+2. **Mobile-first**: Responsive design for various email clients  
+3. **Accessibility**: High contrast, clear hierarchy, alt text for images
+4. **Personalization**: Dynamic content based on user profile and activity
+5. **Clear CTAs**: Single primary action per email with prominent buttons
+6. **Unsubscribe compliance**: Clear opt-out options for all campaign emails
+7. **Email client compatibility**: Avoid CSS features that don't work across email clients:
+   - No `hover:` pseudo-classes (not supported in most email clients)
+   - No CSS Grid or Flexbox gap properties (use explicit margins instead)
+   - No `space-y-*` utilities (require CSS selectors not available in email)
+   - Use inline styles and email-safe CSS properties
+   - Prefer Table/Row/Column layout over modern CSS Grid/Flexbox
+
+### Security & Privacy Considerations
+
+1. **Email address validation**: Validate all recipient addresses before sending
+2. **Rate limiting**: Prevent abuse of email sending endpoints
+3. **Webhook security**: Verify Resend webhook signatures
+4. **Data privacy**: Minimal data collection, clear privacy policy links
+5. **Unsubscribe handling**: Honor opt-out requests immediately
+6. **Bounce management**: Automatically suppress bounced addresses
+
+### Monitoring & Analytics
+
+1. **Email delivery tracking**: Monitor delivery rates, bounce rates, open rates
+2. **Template performance**: A/B testing for subject lines and content
+3. **User engagement**: Track clicks, profile completions from emails
+4. **Error monitoring**: Alert on email sending failures
+5. **Cost tracking**: Monitor Resend usage and costs
+
+### Alternative Approaches Considered
+
+#### Resend vs. Other Providers
+**Pros of Resend:**
+- Developer-first API with excellent TypeScript support
+- React Email integration for component-based templates
+- Built-in analytics and webhook system
+- Competitive pricing with generous free tier
+- Good deliverability reputation
+
+**Cons:**
+- Newer service with smaller ecosystem
+- Less enterprise features compared to SendGrid/Mailgun
+- Limited template editor (relies on React Email)
+
+#### Template Engine Alternatives
+**React Email (Chosen):**
+- Type-safe templates with React components
+- Excellent developer experience
+- Version control friendly
+- Component reusability
+
+**Traditional HTML Templates:**
+- More widely supported
+- Easier for non-developers to edit
+- Better email client compatibility
+- Less modern development experience
+
+#### Scheduling Alternatives
+**Vercel Cron (Preferred):**
+- Zero additional infrastructure
+- Integrated with deployment
+- Reliable scheduling
+
+**External Services (Considered):**
+- More complex setup
+- Additional cost and dependencies
+- Better for complex scheduling needs
+
+### Performance Considerations
+
+1. **Batch processing**: Send multiple emails efficiently using Resend batch API
+2. **Template caching**: Cache compiled email templates
+3. **Database optimization**: Efficient queries for user segmentation
+4. **Rate limiting**: Respect Resend API limits and implement queuing
+5. **Webhook processing**: Async webhook event processing to avoid timeouts
+
+### Implementation Lessons Learned
+
+#### Welcome Email System Implementation (Current Status)
+1. **Production Setup Complete**: Full welcome email system implemented and working:
+   - **EmailService**: Complete service class with logging, error handling, and template rendering
+   - **Welcome API Route**: `/api/email/welcome` handles server-side email sending with user validation
+   - **Auth Integration**: Automatic email sending on signup (both email/password and Google OAuth)
+   - **Production URLs**: All email links and assets use `https://civicmatch.app` domain
+   - **Email Logging**: Supabase RLS disabled on `email_logs` table to allow server-side logging
+
+2. **Email Template Fixes Applied**:
+   - **Logo Solution**: Uses `email-logo.png` from production domain with 100% border-radius
+   - **Header Personalization**: "Welcome [FirstName]!" instead of full name + emoji
+   - **Number Alignment**: Table-based layout with centered numbers using `margin: 0 auto`
+   - **Clean Layout**: Removed "Learn about messaging" and "View community guidelines" text
+   - **CTA Styling**: Light gray background on "Explore Profiles" button
+   - **Signature Logo**: Added CivicMatch logo below signature
+
+3. **Cross-Origin Issues Resolved**:
+   - **Base URL Strategy**: All email templates use production domain (`https://civicmatch.app`)
+   - **Asset Loading**: Email images load from live domain to avoid `net::ERR_BLOCKED_BY_RESPONSE`
+   - **Link Targeting**: Profile and explore links direct users to production app
+
+#### Email Template Development
+1. **React Email Limitations**: Email clients have strict CSS limitations that require careful consideration:
+   - Avoid modern CSS features like CSS Grid, Flexbox gap, space-y utilities
+   - Use Table/Row/Column components for reliable layout across email clients
+   - Replace hover states with static styling (emails don't support hover reliably)
+   - Use explicit margin classes instead of space utilities
+   - **Number Centering**: Use `margin: 0 auto` instead of `display: flex` for email compatibility
+
+2. **Profile Data Integration**: WeeklyMatchEmail template successfully integrates all profile fields:
+   - Conditional rendering prevents empty sections from appearing
+   - Comprehensive profile display includes: skills, fame, aim, game, workStyle, helpNeeded
+   - Visual hierarchy with Lucide icons maintains consistency with web app
+   - Profile pictures enhance personalization and engagement
+
+3. **Template Architecture**: 
+   - Shared components (Layout, Header, Icons) ensure consistency
+   - Barrel exports simplify imports across the email system
+   - DM Sans font integration provides brand consistency
+   - **Image Strategy**: Use production domain URLs instead of base64 for better performance and reliability
+
+#### Database & Security Decisions
+1. **Supabase Integration**: Successfully implemented secure email logging without service role:
+   - Uses `NEXT_PUBLIC_SUPABASE_ANON_KEY` with RLS policies for security
+   - EmailLogService provides abstraction layer for database operations
+   - Server-side validation prevents abuse while maintaining security
+
+2. **Schema Optimization**: JSONB approach reduces complexity while maintaining performance:
+   - Email preferences and match history moved to profiles.data JSONB
+   - Separate email_logs table maintained for analytics and high-volume operations
+   - 66% reduction in required tables (3 → 1) without performance compromise
+
+This email system architecture provides a solid foundation for user engagement while maintaining developer productivity and system reliability. The phased approach allows for incremental implementation and testing of each component.
 
 ## PWA (MVP) plan
 
@@ -708,7 +1148,8 @@ All of the above can be rolled out incrementally, guarded by existing events (`a
 1. **Foundation**: auth, profile CRUD, shadcn/ui, dark mode, responsive layout
 2. **Search & matching**: filters, rule‑based scoring, result lists
 3. **Connections & messaging**: request/accept, realtime conversations
-4. **Polish**: notifications, moderation tools, telemetry, accessibility audits
+4. **Email system**: welcome emails, password resets, weekly campaigns, user matching
+5. **Polish**: notifications, moderation tools, telemetry, accessibility audits
 
 ## Open questions
 

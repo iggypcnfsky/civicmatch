@@ -51,7 +51,13 @@ export default function ExplorePage() {
   useEffect(() => {
     if (isAuthenticated) {
       (async () => {
-        try { await ensureProfileForCurrentUser(); } catch {}
+        try { 
+          const { isNewUser, userId } = await ensureProfileForCurrentUser();
+          // Send welcome email if it's a new user (e.g., from Google OAuth)
+          if (isNewUser && userId) {
+            await sendWelcomeEmail(userId);
+          }
+        } catch {}
         try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
       })();
     }
@@ -157,12 +163,33 @@ export default function ExplorePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isLoading, hasMore]);
 
-  async function ensureProfileForCurrentUser() {
+  async function sendWelcomeEmail(userId: string) {
+    try {
+      const response = await fetch('/api/email/welcome', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+      
+      if (!response.ok) {
+        console.warn('Failed to send welcome email:', await response.text());
+      } else {
+        console.log('Welcome email sent successfully');
+      }
+    } catch (emailError) {
+      console.warn('Error sending welcome email:', emailError);
+      // Don't fail the signup process if email fails
+    }
+  }
+
+  async function ensureProfileForCurrentUser(): Promise<{ isNewUser: boolean; userId: string | null }> {
     const { data: userRes } = await supabase.auth.getUser();
     const user = userRes?.user;
-    if (!user) return;
+    if (!user) return { isNewUser: false, userId: null };
     const username = user.email ?? "";
-    if (!username) return;
+    if (!username) return { isNewUser: false, userId: user.id };
     const md = (user.user_metadata ?? {}) as Record<string, unknown>;
     const fullNameCandidates = [
       typeof md["name"] === "string" ? (md["name"] as string) : undefined,
@@ -189,7 +216,9 @@ export default function ExplorePage() {
       if (displayName) data.displayName = displayName;
       if (avatarUrl) data.avatarUrl = avatarUrl;
       await supabase.from("profiles").insert({ user_id: user.id, username, data });
+      return { isNewUser: true, userId: user.id };
     }
+    return { isNewUser: false, userId: user.id };
   }
 
   async function handleLogin() {
@@ -214,7 +243,15 @@ export default function ExplorePage() {
     try {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      await ensureProfileForCurrentUser();
+      
+      // Ensure profile is created and check if it's a new user
+      const { isNewUser, userId } = await ensureProfileForCurrentUser();
+      
+      // Send welcome email if it's a new user
+      if (isNewUser && userId) {
+        await sendWelcomeEmail(userId);
+      }
+      
       try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Sign up failed";
