@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye } from "lucide-react";
+import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye, Mail } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 type AimItem = { title: string; summary: string };
@@ -24,6 +24,14 @@ type ProfileData = {
   avatarUrl?: string;
   workStyle?: string;
   helpNeeded?: string;
+  emailPreferences?: {
+    weeklyMatchingEnabled?: boolean;
+    profileRemindersEnabled?: boolean;
+    connectionNotifications?: boolean;
+    frequency?: string;
+    preferredTime?: string;
+    timezone?: string;
+  };
 };
 
 export default function ProfilePage() {
@@ -46,6 +54,10 @@ export default function ProfilePage() {
   const [aimSingle, setAimSingle] = useState<string>("");
   const [workStyle, setWorkStyle] = useState<string>("");
   const [helpNeeded, setHelpNeeded] = useState<string>("");
+  const [emailPreferences, setEmailPreferences] = useState({
+    weeklyMatchingEnabled: true,
+    profileRemindersEnabled: true,
+  });
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -77,6 +89,7 @@ export default function ProfilePage() {
       avatarUrl,
       workStyle,
       helpNeeded,
+      emailPreferences,
     } as const;
   }
 
@@ -110,6 +123,14 @@ export default function ProfilePage() {
     setAvatarUrl(asString(d.avatarUrl) ?? "");
     setWorkStyle(asString((d as ProfileData).workStyle) ?? "");
     setHelpNeeded(asString((d as ProfileData).helpNeeded) ?? "");
+    
+    // Handle email preferences
+    if (d.emailPreferences && typeof d.emailPreferences === 'object') {
+      setEmailPreferences({
+        weeklyMatchingEnabled: d.emailPreferences.weeklyMatchingEnabled ?? true,
+        profileRemindersEnabled: d.emailPreferences.profileRemindersEnabled ?? true,
+      });
+    }
   }
 
   useEffect(() => {
@@ -221,15 +242,18 @@ export default function ProfilePage() {
       </header>
 
       <div className="space-y-4">
-        {/* Main form */}
-        <section className="space-y-4">
-          {/* Basics / NAME */}
+        {/* Main form - 2 column layout for desktop */}
+        <section className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+          {/* Left Column - Container for BASICS and Email Preferences */}
+          <div className="space-y-4">
+          {/* Basics */}
           <div id="basics" className="card space-y-4">
             <div className="border-b border-divider pb-3 flex items-center justify-between">
               <h2 className="font-semibold">Basics</h2>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3 items-start">
-              <div className="sm:col-span-1 flex items-center gap-4">
+            <div className="space-y-4">
+              {/* Avatar section */}
+              <div className="flex flex-col items-center gap-4">
                 <div className="size-24 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center overflow-hidden">
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -246,7 +270,9 @@ export default function ProfilePage() {
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
               </div>
-              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+              
+              {/* Name fields */}
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm">First name</label>
                   <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={first} onChange={(e) => setFirst(e.target.value)} />
@@ -255,121 +281,186 @@ export default function ProfilePage() {
                   <label className="text-sm">Last name</label>
                   <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={last} onChange={(e) => setLast(e.target.value)} />
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="text-sm">Email</label>
-                  <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              
+              {/* Email */}
+              <div>
+                <label className="text-sm">Email</label>
+                <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              
+              {/* Location */}
+              <div>
+                <label className="text-sm">Location</label>
+                <div className="flex items-center gap-2">
+                  <MapPin className="size-4 opacity-70" />
+                  <input className="flex-1 rounded-lg border bg-transparent px-3 py-2" value={location} onChange={(e) => setLocation(e.target.value)} />
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="text-sm">Location</label>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="size-4 opacity-70" />
-                    <input className="flex-1 rounded-lg border bg-transparent px-3 py-2" value={location} onChange={(e) => setLocation(e.target.value)} />
-                  </div>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="text-sm">Tags (comma‑separated)</label>
-                  <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={tags} onChange={(e) => setTags(e.target.value)} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="text-sm">Intro</label>
-                  <textarea className="w-full rounded-lg border bg-transparent px-3 py-2" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="text-sm">Links</label>
-                  <div className="space-y-2">
-                    {links.map((l, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <LinkIcon className="size-4 opacity-70" />
-                        <input className="flex-1 rounded-full border bg-transparent px-4 py-2" value={l} onChange={(e) => setLinks(links.map((x, idx) => (idx === i ? e.target.value : x)))} />
-                        <button className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
-                      </div>
-                    ))}
-                    <button className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
-                  </div>
+              </div>
+              
+              {/* Tags */}
+              <div>
+                <label className="text-sm">Tags (comma‑separated)</label>
+                <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={tags} onChange={(e) => setTags(e.target.value)} />
+              </div>
+              
+              {/* Bio */}
+              <div>
+                <label className="text-sm">Intro</label>
+                <textarea className="w-full rounded-lg border bg-transparent px-3 py-2" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} />
+              </div>
+              
+              {/* Links */}
+              <div>
+                <label className="text-sm">Links</label>
+                <div className="space-y-2">
+                  {links.map((l, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <LinkIcon className="size-4 opacity-70" />
+                      <input className="flex-1 rounded-full border bg-transparent px-4 py-2" value={l} onChange={(e) => setLinks(links.map((x, idx) => (idx === i ? e.target.value : x)))} />
+                      <button className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
+                    </div>
+                  ))}
+                  <button className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
-          {/* Skills & What I Do */}
-          <section id="skills" className="card space-y-3 min-h-[220px] h-full flex flex-col">
-            <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
-            <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
-              rows={3}
-              placeholder="List your core skills or roles (e.g., Full‑stack engineer, Product manager)"
-              value={skills}
-              onChange={(e) => setSkills(e.target.value)}
-            />
-          </section>
+          {/* Email Preferences Panel */}
+          <div id="email-preferences" className="card space-y-4">
+            <div className="border-b border-divider pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="size-4 text-[color:var(--accent)]" />
+                <h2 className="font-semibold">Email Preferences</h2>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {/* Weekly Match Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium">Weekly Match</label>
+                  <p className="text-xs text-[color:var(--muted-foreground)] mt-1">
+                    Receive weekly matches with potential collaborators
+                  </p>
+                </div>
+                <button
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    emailPreferences.weeklyMatchingEnabled 
+                      ? 'bg-[color:var(--accent)]' 
+                      : 'bg-[color:var(--muted)]/60'
+                  }`}
+                  onClick={() => setEmailPreferences(prev => ({ ...prev, weeklyMatchingEnabled: !prev.weeklyMatchingEnabled }))}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      emailPreferences.weeklyMatchingEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
 
-          {/* What I'm Known For */}
-          <section id="fame" className="card space-y-3 min-h-[220px] h-full flex flex-col">
-            <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Known For</h2></header>
-            <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
-              rows={3}
-              placeholder="What are you known for? (e.g., Led open‑data initiative in my city; ex‑Google PM)"
-              value={fame}
-              onChange={(e) => setFame(e.target.value)}
-            />
-          </section>
-
-          {/* What I'm Focused On */}
-          <section id="aim" className="card space-y-3 min-h-[220px] h-full flex flex-col">
-            <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I’m Focused On</h2></header>
-            <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
-              rows={3}
-              placeholder="What are you focusing on in the next 3–6 months? (e.g., Building MVP for civic engagement app)"
-              value={aimSingle}
-              onChange={(e) => setAimSingle(e.target.value)}
-            />
-          </section>
-
-          {/* Long-term Strategy */}
-          <section id="game" className="card space-y-3 min-h-[220px] h-full flex flex-col">
-            <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
-            <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
-              rows={3}
-              placeholder="What’s your long‑term vision? (e.g., Launch a public‑interest tech cooperative)"
-              value={game}
-              onChange={(e) => setGame(e.target.value)}
-            />
-          </section>
-
-          {/* Work Style */}
-          <section id="work-style" className="card space-y-3 min-h-[220px] h-full flex flex-col">
-            <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
-            <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
-              rows={3}
-              placeholder="How do you like to work? (e.g., Remote async, weekly check‑ins, prefers rapid prototyping)"
-              value={workStyle}
-              onChange={(e) => setWorkStyle(e.target.value)}
-            />
-          </section>
-
-          {/* What do I need help with */}
-          <section id="help-needed" className="card space-y-3 min-h-[220px] h-full flex flex-col">
-            <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
-            <textarea
-              className="w-full rounded-lg border bg-transparent px-3 py-2 flex-1 min-h-[160px] resize-none"
-              rows={3}
-              placeholder="What help do you need? (e.g., Designer to shape UX; Intro to city data portal)"
-              value={helpNeeded}
-              onChange={(e) => setHelpNeeded(e.target.value)}
-            />
-          </section>
+              {/* Newsletter Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium">Newsletter</label>
+                  <p className="text-xs text-[color:var(--muted-foreground)] mt-1">
+                    Receive updates about platform features and community highlights
+                  </p>
+                </div>
+                <button
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    emailPreferences.profileRemindersEnabled 
+                      ? 'bg-[color:var(--accent)]' 
+                      : 'bg-[color:var(--muted)]/60'
+                  }`}
+                  onClick={() => setEmailPreferences(prev => ({ ...prev, profileRemindersEnabled: !prev.profileRemindersEnabled }))}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      emailPreferences.profileRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
           </div>
 
-          {/* Portfolio removed per new design */}
+          {/* Right Column - All other panels */}
+          <div className="space-y-4">
+            {/* Skills & What I Do */}
+            <section id="skills" className="card space-y-3">
+              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
+              <textarea
+                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
+                rows={3}
+                placeholder="List your core skills or roles (e.g., Full‑stack engineer, Product manager)"
+                value={skills}
+                onChange={(e) => setSkills(e.target.value)}
+              />
+            </section>
 
-          {/* Custom sections removed per new design */}
+            {/* What I'm Known For */}
+            <section id="fame" className="card space-y-3">
+              <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Known For</h2></header>
+              <textarea
+                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
+                rows={3}
+                placeholder="What are you known for? (e.g., Led open‑data initiative in my city; ex‑Google PM)"
+                value={fame}
+                onChange={(e) => setFame(e.target.value)}
+              />
+            </section>
 
-          {/* Bottom action row removed (duplicate on mobile; desktop Save remains in header) */}
+            {/* What I'm Focused On */}
+            <section id="aim" className="card space-y-3">
+              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Focused On</h2></header>
+              <textarea
+                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
+                rows={3}
+                placeholder="What are you focusing on in the next 3–6 months? (e.g., Building MVP for civic engagement app)"
+                value={aimSingle}
+                onChange={(e) => setAimSingle(e.target.value)}
+              />
+            </section>
+
+            {/* Long-term Strategy */}
+            <section id="game" className="card space-y-3">
+              <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
+              <textarea
+                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
+                rows={3}
+                placeholder="What's your long‑term vision? (e.g., Launch a public‑interest tech cooperative)"
+                value={game}
+                onChange={(e) => setGame(e.target.value)}
+              />
+            </section>
+
+            {/* Work Style */}
+            <section id="work-style" className="card space-y-3">
+              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
+              <textarea
+                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
+                rows={3}
+                placeholder="How do you like to work? (e.g., Remote async, weekly check‑ins, prefers rapid prototyping)"
+                value={workStyle}
+                onChange={(e) => setWorkStyle(e.target.value)}
+              />
+            </section>
+
+            {/* What do I need help with */}
+            <section id="help-needed" className="card space-y-3">
+              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
+              <textarea
+                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
+                rows={3}
+                placeholder="What help do you need? (e.g., Designer to shape UX; Intro to city data portal)"
+                value={helpNeeded}
+                onChange={(e) => setHelpNeeded(e.target.value)}
+              />
+            </section>
+          </div>
         </section>
       </div>
 
