@@ -133,7 +133,7 @@ export class GoogleAuth {
         console.error('Error name:', error.name);
         console.error('Error message:', error.message);
         if ('code' in error) {
-          console.error('Error code:', (error as any).code);
+          console.error('Error code:', (error as { code?: string }).code);
         }
       }
       

@@ -52,7 +52,6 @@ export default function MobileChatPage() {
         }
         // Load conversation with retry mechanism
         let conv = null;
-        let convErr = null;
         let retryCount = 0;
         const maxRetries = 5;
         const baseDelay = 500; // Start with 500ms
@@ -66,7 +65,6 @@ export default function MobileChatPage() {
             
           if (err) {
             console.error(`Error loading conversation (attempt ${retryCount + 1}):`, err);
-            convErr = err;
           } else if (convData) {
             conv = convData;
             console.log('Conversation loaded successfully on attempt:', retryCount + 1);
