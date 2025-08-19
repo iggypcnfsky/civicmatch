@@ -22,6 +22,7 @@ export default function MobileChatPage() {
   const [about, setAbout] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadingMessage, setLoadingMessage] = useState<string>("Loading conversation...");
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -49,19 +50,44 @@ export default function MobileChatPage() {
           await failSafeLogout(); 
           return; 
         }
-        // Load conversation to resolve counterpart id
-        const { data: conv, error: convErr } = await supabase
-          .from("conversations")
-          .select("data, updated_at")
-          .eq("id", id)
-          .maybeSingle();
-        if (convErr) { 
-          console.error('Error loading conversation:', convErr);
-          await failSafeLogout(); 
-          return; 
+        // Load conversation with retry mechanism
+        let conv = null;
+        let convErr = null;
+        let retryCount = 0;
+        const maxRetries = 5;
+        const baseDelay = 500; // Start with 500ms
+        
+        while (retryCount < maxRetries && !conv) {
+          const { data: convData, error: err } = await supabase
+            .from("conversations")
+            .select("data, updated_at")
+            .eq("id", id)
+            .maybeSingle();
+            
+          if (err) {
+            console.error(`Error loading conversation (attempt ${retryCount + 1}):`, err);
+            convErr = err;
+          } else if (convData) {
+            conv = convData;
+            console.log('Conversation loaded successfully on attempt:', retryCount + 1);
+            break;
+          } else {
+            console.log(`Conversation not found (attempt ${retryCount + 1}):`, id);
+          }
+          
+          retryCount++;
+          
+          if (retryCount < maxRetries) {
+            const delay = baseDelay * Math.pow(2, retryCount - 1); // Exponential backoff
+            console.log(`Retrying in ${delay}ms...`);
+            setLoadingMessage(`Conversation not ready yet, retrying in ${Math.ceil(delay/1000)}s... (${retryCount}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            setLoadingMessage("Loading conversation...");
+          }
         }
+        
         if (!conv) {
-          console.error('Conversation not found:', id);
+          console.error(`Failed to load conversation after ${maxRetries} attempts:`, id);
           await failSafeLogout();
           return;
         }
@@ -108,7 +134,7 @@ export default function MobileChatPage() {
       <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-14 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text-muted">Loading conversation...</p>
+          <p className="text-text-muted">{loadingMessage}</p>
         </div>
       </div>
     );

@@ -57,7 +57,11 @@ function StartConversationContent() {
         
         if (result.success && result.redirectUrl) {
           setStatus('redirecting');
-          router.push(result.redirectUrl);
+          
+          // Add a small delay to ensure conversation is ready
+          setTimeout(() => {
+            router.push(result.redirectUrl);
+          }, 1000);
         } else {
           setError(result.error || 'Unexpected response from server');
           setStatus('error');
