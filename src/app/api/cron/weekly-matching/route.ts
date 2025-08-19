@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
         // Prepare email data with meeting integration
         const emailData = {
           currentUser: {
+            userId: currentUser.user_id,
             displayName: currentUser.data.displayName || currentUser.username,
             avatarUrl: currentUser.data.avatarUrl
           },

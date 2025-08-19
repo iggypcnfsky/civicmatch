@@ -201,6 +201,7 @@ export async function POST(request: NextRequest) {
     // Prepare email data
     const emailData = {
       currentUser: {
+        userId: currentUser.user_id,
         displayName: String(currentUserData.displayName || currentUser.username),
         avatarUrl: String(currentUserData.avatarUrl || '')
       },
@@ -263,6 +264,7 @@ export async function POST(request: NextRequest) {
         // Prepare email data for this specific user
         const userSpecificEmailData = {
           currentUser: {
+            userId: userPair.currentUser.user_id,
             displayName: String(currentUserData.displayName || userPair.currentUser.username),
             avatarUrl: String(currentUserData.avatarUrl || '')
           },

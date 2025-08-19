@@ -53,6 +53,7 @@ interface MatchedProfile {
 
 interface WeeklyMatchEmailProps {
   currentUser?: {
+    userId: string;
     displayName: string;
     avatarUrl?: string;
   };
@@ -147,7 +148,7 @@ const getMeetingDayDate = (): Date => {
 };
 
 export const WeeklyMatchEmail = ({
-  currentUser = { displayName: 'User', avatarUrl: undefined },
+  currentUser = { userId: 'default-user', displayName: 'User', avatarUrl: undefined },
   match,
   meetingDetails,
   exploreMoreUrl = `${baseUrl}/`,
@@ -410,7 +411,7 @@ export const WeeklyMatchEmail = ({
         {/* CTA Buttons */}
         <Section className="text-center mt-32">
           <Button 
-            href="https://www.civicmatch.app/messages"
+            href={`https://www.civicmatch.app/api/messages/start?currentUserId=${currentUser.userId}&targetUserId=${match.userId}`}
             className="rounded-full bg-primary px-32 py-16 text-background font-semibold text-16 no-underline mr-16"
           >
             <MailIcon size={16} className="mr-8" />
@@ -487,6 +488,7 @@ export const WeeklyMatchEmail = ({
 // Preview props for email development
 WeeklyMatchEmail.PreviewProps = {
   currentUser: {
+    userId: 'preview-user-maya',
     displayName: 'Maya Patel',
     avatarUrl: 'https://images.unsplash.com/photo-1494790108755-2616b612b765?w=80&h=80&fit=crop&crop=face'
   },

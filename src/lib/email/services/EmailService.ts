@@ -44,6 +44,7 @@ export interface ProfileReminderEmailData {
 
 export interface WeeklyMatchEmailData {
   currentUser?: {
+    userId: string;
     displayName: string;
     avatarUrl?: string;
   };

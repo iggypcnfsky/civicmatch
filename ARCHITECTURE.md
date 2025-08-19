@@ -47,6 +47,7 @@ Client (RSC + selective CSR)
    │     ├─ Auth (Supabase) + RLS policies
    │     ├─ Domain services (profiles, matching, messaging, connections)
    │     ├─ Email system (Resend + React Email templates)
+   │     ├─ Email-to-conversation bridge (/api/messages/start) ✅ NEW
    │     ├─ Cron jobs (Vercel Cron for automated campaigns)
    │     └─ Validation (Zod)
    │
@@ -73,9 +74,9 @@ Indexes focus on username, search facets (skills/causes), and conversationId for
 - **Auth & onboarding**: email magic link, optional social; guided setup of profile facets
 - **Profiles**: view/edit profile; public profile at `/profile/[username]`
 - **Matching & search**: filter by values, skills, causes; sort by a rule‑based score
-- **Messaging**: 1:1 conversations; realtime updates; optimistic send
+- **Messaging**: 1:1 conversations; realtime updates; optimistic send; email-to-conversation creation ✅
 - **Connections**: request/accept/block; dashboard overview
-- **Email system**: welcome emails, password resets, weekly reminders, matching suggestions
+- **Email system**: welcome emails, password resets, weekly reminders, matching suggestions with integrated messaging
 - **Notifications**: in‑app (toast/badge); email campaigns and transactional messages
 
 ## Matching approach 
@@ -217,6 +218,20 @@ src/app/
     page.tsx              // Conversations list + active thread (desktop split)
     [id]/page.tsx         // Full‑screen chat on mobile; global top bar shows a back arrow
   api/
+    messages/
+      start/route.ts      // Email-to-conversation creation ✅ NEW
+    calendar/
+      download/[eventId]/route.ts  // ICS file downloads
+    cron/
+      weekly-matching/route.ts     // Weekly match emails
+      weekly-reminders/route.ts    // Profile completion reminders
+    email/
+      welcome/route.ts    // Welcome email sending
+    test/
+      weekly-matching/route.ts     // Development testing
+      profile-reminders/route.ts   // Development testing
+    webhooks/
+      resend/route.ts     // Resend webhook handler
     search/route.ts       // server search endpoint (if needed)
   layout.tsx
   globals.css
@@ -575,6 +590,54 @@ Example `data` payloads
 - Mobile: full‑screen chat includes header with avatar, name, and about
 - Composer: textarea + pill Send button; icon‑only pill on mobile; bubbles left/right aligned with tighter paddings
 
+### Email-to-Conversation Integration ✅ IMPLEMENTED
+
+**Functionality**: Direct conversation creation from WeeklyMatchEmail "Send Message" button
+
+**API Endpoint**: `/api/messages/start`
+- **Method**: `GET`
+- **Parameters**: `currentUserId`, `targetUserId`
+- **Flow**:
+  1. Validates both users exist in profiles table
+  2. Searches for existing conversation using JSONB `participantIds` containment
+  3. Creates new conversation if none exists, otherwise reuses existing
+  4. Creates connection record for analytics tracking
+  5. Redirects to `/messages/[conversation-id]` for immediate chat
+
+**Database Operations**:
+```sql
+-- Find existing conversation
+SELECT id FROM conversations 
+WHERE data @> '{"participantIds": ["user1", "user2"]}';
+
+-- Create new conversation
+INSERT INTO conversations (data) 
+VALUES ('{"participantIds": ["user1", "user2"]}');
+
+-- Create connection record
+INSERT INTO connections (requester_id, addressee_id, status, data)
+VALUES (user1, user2, 'pending', '{"source": "weekly_match_email"}');
+```
+
+**User Experience**:
+- **Email**: Click "Send Message" → `https://civicmatch.app/api/messages/start?currentUserId=X&targetUserId=Y`
+- **API**: Smart conversation detection (create/reuse) → Redirect to `/messages/[conversation-id]`
+- **Result**: User lands directly in individual chat, ready to message
+
+**Error Handling**:
+- User validation (404 if user not found)
+- Duplicate conversation prevention
+- Graceful fallbacks with proper HTTP status codes
+- Security validation against malformed requests
+
+**Integration Points**:
+- **WeeklyMatchEmail Template**: Enhanced `currentUser` interface includes `userId`
+- **EmailService**: Updated `WeeklyMatchEmailData` interface for proper type safety
+- **Cron Jobs**: Both production and test endpoints include `userId` in email data
+- **Individual Chat Page**: Existing `/messages/[id]/page.tsx` handles the conversation UI
+
+This implementation eliminates friction in the email-to-conversation funnel, enabling seamless transitions from weekly match notifications to active messaging.
+
 ## Security & privacy
 
 - **Auth**: Supabase Auth; session on server; middleware protects private routes
@@ -800,7 +863,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - **Match reasoning**: Generic encouragement messages ("Both changemakers ready to connect")
   - **Google Meet Integration**: Automatic 30-minute Friday 5 PM CET meetings with calendar invites
   - **Meeting coordination**: Message prompting users to confirm via calendar or direct message
-  - **Clear CTAs**: "Send Message" → `/messages`, "View Profile" → `/profiles/[userId]`, "Add to Calendar" only
+  - **Clear CTAs**: "Send Message" → `/api/messages/start?currentUserId=X&targetUserId=Y` (creates/finds conversation), "View Profile" → `/profiles/[userId]`, "Add to Calendar"
   - **Professional branding**: Centered signature with CivicMatch logo, production domain links
 - **Implementation**: 
   - **Cron Schedule**: `0 10 * * 3` (Wednesday 10 AM UTC) via Vercel Cron
@@ -811,6 +874,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - **Timezone Handling**: CET to local timezone conversion with 30-minute duration
   - **Database Tracking**: `email_logs` with `calendar_event_id` and `google_meet_url` columns
   - **Rate Limiting**: 600ms delays between emails and 200ms between calendar API calls
+  - **Conversation Integration**: Enhanced `currentUser` interface includes `userId` for direct messaging ✅ NEW
   - **Eligibility**: Requires only `displayName` (or `username` fallback) for early-stage adoption
 - **Files Created**:
   - `src/lib/email/services/MatchingService.ts` - Core matching logic with Google Calendar integration
@@ -820,6 +884,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - `src/app/api/cron/weekly-matching/route.ts` - Production cron endpoint with CRON_SECRET
   - `src/app/api/test/weekly-matching/route.ts` - Development testing endpoint
   - `src/app/api/calendar/download/[eventId]/route.ts` - ICS file downloads for calendar
+  - `src/app/api/messages/start/route.ts` - Email-to-conversation creation endpoint ✅ NEW
   - `src/app/profiles/[userId]/page.tsx` - Dynamic profile pages for email navigation
 
 ### Database Schema Extensions
