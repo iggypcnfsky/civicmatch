@@ -217,6 +217,7 @@ src/app/
   messages/
     page.tsx              // Conversations list + active thread (desktop split)
     [id]/page.tsx         // Full‑screen chat on mobile; global top bar shows a back arrow
+    start/page.tsx        // Email-to-conversation bridge page ✅ NEW
   api/
     messages/
       start/route.ts      // Email-to-conversation creation ✅ NEW
@@ -592,17 +593,23 @@ Example `data` payloads
 
 ### Email-to-Conversation Integration ✅ IMPLEMENTED
 
-**Functionality**: Direct conversation creation from WeeklyMatchEmail "Send Message" button
+**Functionality**: Direct conversation creation from WeeklyMatchEmail "Send Message" button via user-friendly bridge page
 
-**API Endpoint**: `/api/messages/start`
-- **Method**: `GET`
+**Bridge Page**: `/messages/start`
+- **Method**: `GET` (page route)
 - **Parameters**: `currentUserId`, `targetUserId`
+- **User Experience**: Loading spinner with "Starting conversation..." message
+- **Error Handling**: Graceful error states with helpful messages and fallback buttons
+
+**API Endpoint**: `/api/messages/start` (internal)
+- **Method**: `GET` (called by bridge page)
+- **Response**: JSON with `{success: true, conversationId, redirectUrl}`
 - **Flow**:
   1. Validates both users exist in profiles table
   2. Searches for existing conversation using JSONB `participantIds` containment
   3. Creates new conversation if none exists, otherwise reuses existing
   4. Creates connection record for analytics tracking
-  5. Redirects to `/messages/[conversation-id]` for immediate chat
+  5. Returns conversation ID and redirect URL for client-side navigation
 
 **Database Operations**:
 ```sql
@@ -620,8 +627,10 @@ VALUES (user1, user2, 'pending', '{"source": "weekly_match_email"}');
 ```
 
 **User Experience**:
-- **Email**: Click "Send Message" → `https://civicmatch.app/api/messages/start?currentUserId=X&targetUserId=Y`
-- **API**: Smart conversation detection (create/reuse) → Redirect to `/messages/[conversation-id]`
+- **Email**: Click "Send Message" → `https://civicmatch.app/messages/start?currentUserId=X&targetUserId=Y`
+- **Bridge Page**: Shows loading spinner while calling internal API
+- **API**: Smart conversation detection (create/reuse) → Returns JSON with conversation ID
+- **Client**: JavaScript redirect to `/messages/[conversation-id]`
 - **Result**: User lands directly in individual chat, ready to message
 
 **Error Handling**:
@@ -634,9 +643,17 @@ VALUES (user1, user2, 'pending', '{"source": "weekly_match_email"}');
 - **WeeklyMatchEmail Template**: Enhanced `currentUser` interface includes `userId`
 - **EmailService**: Updated `WeeklyMatchEmailData` interface for proper type safety
 - **Cron Jobs**: Both production and test endpoints include `userId` in email data
+- **Bridge Page**: `/messages/start/page.tsx` provides user-friendly loading and error states
 - **Individual Chat Page**: Existing `/messages/[id]/page.tsx` handles the conversation UI
 
-This implementation eliminates friction in the email-to-conversation funnel, enabling seamless transitions from weekly match notifications to active messaging.
+**Benefits**:
+- **No 404 Errors**: Users visit a real page instead of API endpoint
+- **Better UX**: Loading states and graceful error handling
+- **SEO Friendly**: Proper page routes with loading states
+- **Mobile Compatible**: Works seamlessly across all devices
+- **Error Recovery**: Clear error messages with fallback navigation options
+
+This implementation eliminates friction in the email-to-conversation funnel, enabling seamless transitions from weekly match notifications to active messaging while providing a professional user experience.
 
 ## Security & privacy
 
@@ -863,7 +880,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - **Match reasoning**: Generic encouragement messages ("Both changemakers ready to connect")
   - **Google Meet Integration**: Automatic 30-minute Friday 5 PM CET meetings with calendar invites
   - **Meeting coordination**: Message prompting users to confirm via calendar or direct message
-  - **Clear CTAs**: "Send Message" → `/api/messages/start?currentUserId=X&targetUserId=Y` (creates/finds conversation), "View Profile" → `/profiles/[userId]`, "Add to Calendar"
+  - **Clear CTAs**: "Send Message" → `/messages/start?currentUserId=X&targetUserId=Y` (bridge page creates/finds conversation), "View Profile" → `/profiles/[userId]`, "Add to Calendar"
   - **Professional branding**: Centered signature with CivicMatch logo, production domain links
 - **Implementation**: 
   - **Cron Schedule**: `0 10 * * 3` (Wednesday 10 AM UTC) via Vercel Cron
