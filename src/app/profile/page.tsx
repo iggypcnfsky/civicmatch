@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut } from "lucide-react";
+import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 type AimItem = { title: string; summary: string };
@@ -200,7 +200,13 @@ export default function ProfilePage() {
               if (uid) router.push(`/profiles?user=${uid}`);
             }}
           >
-            Preview profile
+            <Eye className="mr-2 size-4" /> Preview profile
+          </button>
+          <button
+            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+            onClick={() => router.push('/auth/reset')}
+          >
+            <Lock className="mr-2 size-4" /> Reset Password
           </button>
           <button className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={saveAll} disabled={loading}>
             <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
@@ -274,8 +280,8 @@ export default function ProfilePage() {
                     {links.map((l, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <LinkIcon className="size-4 opacity-70" />
-                        <input className="flex-1 rounded-lg border bg-transparent px-3 py-2" value={l} onChange={(e) => setLinks(links.map((x, idx) => (idx === i ? e.target.value : x)))} />
-                        <button className="btn btn-muted" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
+                        <input className="flex-1 rounded-full border bg-transparent px-4 py-2" value={l} onChange={(e) => setLinks(links.map((x, idx) => (idx === i ? e.target.value : x)))} />
+                        <button className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
                       </div>
                     ))}
                     <button className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
@@ -376,16 +382,24 @@ export default function ProfilePage() {
         >
           <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
         </button>
-        <button
-          className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-          onClick={async () => {
-            const { data: sess } = await supabase.auth.getSession();
-            const uid = sess?.session?.user?.id;
-            if (uid) router.push(`/profiles?user=${uid}`);
-          }}
-        >
-          Preview profile
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+            onClick={async () => {
+              const { data: sess } = await supabase.auth.getSession();
+              const uid = sess?.session?.user?.id;
+              if (uid) router.push(`/profiles?user=${uid}`);
+            }}
+          >
+            <Eye className="mr-2 size-4" /> Preview
+          </button>
+          <button
+            className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+            onClick={() => router.push('/auth/reset')}
+          >
+            <Lock className="mr-2 size-4" /> Reset Password
+          </button>
+        </div>
         <button
           className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
           onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}

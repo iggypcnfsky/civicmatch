@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { SlidersHorizontal, X, Star, UserRound } from "lucide-react";
+import { SlidersHorizontal, X, Star, UserRound, Eye, EyeOff, Lock } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
@@ -20,6 +20,10 @@ export default function ExplorePage() {
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showGuidelines, setShowGuidelines] = useState(false);
 
   const [items, setItems] = useState<Profile[]>([]);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
@@ -281,6 +285,37 @@ export default function ExplorePage() {
     }
   }
 
+  async function handlePasswordReset() {
+    if (!email) {
+      setAuthError("Please enter your email address");
+      return;
+    }
+
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      // Step 1: Use Supabase's built-in password reset to generate the secure token
+      // Note: You should customize the Supabase email template to be empty or minimal
+      const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : "https://civicmatch.app/auth/reset",
+      });
+      
+      if (supabaseError) {
+        throw supabaseError;
+      }
+
+      // Note: Only using Supabase's built-in email now
+      // Custom email sending disabled to avoid duplicate emails
+
+      setResetSuccess(true);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Password reset failed";
+      setAuthError(msg);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   if (isAuthenticated === false) {
     return (
       <div className="min-h-dvh grid grid-cols-1 lg:grid-cols-2">
@@ -312,37 +347,106 @@ export default function ExplorePage() {
               <div className="text-2xl font-bold">Civic Match</div>
             </div>
             <div className="card space-y-4">
-              <h1 className="text-xl font-semibold text-center">Welcome</h1>
-              <p className="text-sm opacity-80 text-center">Sign in or create an account to continue.</p>
-              <div className="space-y-3">
-                <label className="text-xs opacity-70">Email</label>
-                <input value={email} onChange={(e)=>setEmail(e.target.value)} type="email" placeholder="you@example.com" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm" />
-                <label className="text-xs opacity-70">Password</label>
-                <input value={password} onChange={(e)=>setPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm" />
-              </div>
-              {authError && <div className="text-xs text-red-500">{authError}</div>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-                <button
-                  className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
-                  disabled={authLoading}
-                  onClick={handleLogin}
-                >
-                  {authLoading ? "Loading..." : "Log in"}
-                </button>
-                <button
-                  className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm disabled:opacity-60"
-                  disabled={authLoading}
-                  onClick={handleSignup}
-                >
-                  {authLoading ? "Loading..." : "Create account"}
-                </button>
-              </div>
-              <button
-                className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--background)] hover:bg-[color:var(--muted)]/20 gap-2 text-sm mt-2 disabled:opacity-60"
-                onClick={handleGoogle}
-                disabled={authLoading}
-                aria-label="Continue with Google"
-              >
+              {resetSuccess ? (
+                <>
+                  <h1 className="text-xl font-semibold text-center">Check your email</h1>
+                  <p className="text-sm opacity-80 text-center">
+                    We&apos;ve sent a password reset link to <strong>{email}</strong>. 
+                    Check your email and follow the link to reset your password.
+                  </p>
+                  <button
+                    className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+                    onClick={() => {
+                      setResetSuccess(false);
+                      setResetMode(false);
+                      setEmail("");
+                      setAuthError(null);
+                    }}
+                  >
+                    Back to sign in
+                  </button>
+                </>
+              ) : resetMode ? (
+                <>
+                  <h1 className="text-xl font-semibold text-center">Reset Password</h1>
+                  <p className="text-sm opacity-80 text-center">Enter your email address and we&apos;ll send you a link to reset your password.</p>
+                  <div className="space-y-3">
+                    <label className="text-xs opacity-70">Email</label>
+                    <input value={email} onChange={(e)=>setEmail(e.target.value)} type="email" placeholder="you@example.com" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm" />
+                  </div>
+                  {authError && <div className="text-xs text-red-500">{authError}</div>}
+                  <div className="space-y-2 pt-2">
+                    <button
+                      className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
+                      disabled={authLoading}
+                      onClick={handlePasswordReset}
+                    >
+                      {authLoading ? "Sending..." : "Send reset link"}
+                    </button>
+                    <button
+                      className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm disabled:opacity-60"
+                      disabled={authLoading}
+                      onClick={() => {
+                        setResetMode(false);
+                        setAuthError(null);
+                      }}
+                    >
+                      Back to sign in
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-xl font-semibold text-center">Welcome</h1>
+                  <p className="text-sm opacity-80 text-center">Sign in or create an account to continue.</p>
+                  <div className="space-y-3">
+                    <label className="text-xs opacity-70">Email</label>
+                    <input value={email} onChange={(e)=>setEmail(e.target.value)} type="email" placeholder="you@example.com" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm" />
+                    <label className="text-xs opacity-70">Password</label>
+                    <div className="relative">
+                      <input 
+                        value={password} 
+                        onChange={(e)=>setPassword(e.target.value)} 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="••••••••" 
+                        className="w-full rounded-lg border bg-transparent px-3 py-2 pr-10 text-sm" 
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {authError && <div className="text-xs text-red-500">{authError}</div>}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    <button
+                      className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
+                      disabled={authLoading}
+                      onClick={handleLogin}
+                    >
+                      {authLoading ? "Loading..." : "Log in"}
+                    </button>
+                    <button
+                      className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm disabled:opacity-60"
+                      disabled={authLoading}
+                      onClick={handleSignup}
+                    >
+                      {authLoading ? "Loading..." : "Create account"}
+                    </button>
+                  </div>
+                </>
+              )}
+              {!resetMode && !resetSuccess && (
+                <>
+                  <button
+                    className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--background)] hover:bg-[color:var(--muted)]/20 gap-2 text-sm mt-2 disabled:opacity-60"
+                    onClick={handleGoogle}
+                    disabled={authLoading}
+                    aria-label="Continue with Google"
+                  >
                 {/* Google Icon SVG */}
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
                   <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
@@ -353,12 +457,146 @@ export default function ExplorePage() {
                 </svg>
                 <span>Continue with Google</span>
               </button>
+              
+              <div className="text-center mt-3">
+                <button
+                  className="inline-flex items-center gap-2 text-xs text-[color:var(--accent)] hover:underline"
+                  onClick={() => {
+                    setResetMode(true);
+                    setAuthError(null);
+                  }}
+                >
+                  <Lock className="h-3 w-3" />
+                  Password Reset
+                </button>
+              </div>
+              </>
+              )}
               <div className="text-xs opacity-70 text-center">
-                By continuing you agree to our community guidelines.
+                By continuing you agree to our{' '}
+                <button
+                  className="text-gray-400 hover:text-gray-300 hover:underline"
+                  onClick={() => setShowGuidelines(true)}
+                >
+                  community guidelines
+                </button>
+                .
               </div>
             </div>
           </div>
         </section>
+
+        {/* Community Guidelines Modal */}
+        {showGuidelines && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-8">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowGuidelines(false)} />
+            <div className="relative w-full h-full md:w-auto md:h-auto md:max-w-2xl md:max-h-[80vh] bg-[color:var(--background)] md:rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-divider">
+                <div className="flex items-center gap-3">
+                  <Logo className="size-6 text-[color:var(--accent)]" />
+                  <h2 className="text-xl font-semibold">Community Guidelines</h2>
+                </div>
+                <button
+                  className="h-8 w-8 rounded-full border border-divider flex items-center justify-center hover:bg-[color:var(--muted)]/20"
+                  onClick={() => setShowGuidelines(false)}
+                  aria-label="Close guidelines"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Our Mission</h3>
+                    <p className="text-sm opacity-80 leading-relaxed">
+                      CivicMatch exists to connect changemakers, social entrepreneurs, and impact-driven individuals 
+                      who are building a better world. We believe that meaningful collaboration starts with authentic 
+                      connections and shared values.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Community Standards</h3>
+                    <ul className="space-y-2 text-sm opacity-80">
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span><strong>Be Authentic:</strong> Use your real name and genuine information. Authentic profiles lead to meaningful connections.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span><strong>Stay Respectful:</strong> Treat all community members with respect. Harassment, discrimination, or hate speech will not be tolerated.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span><strong>Focus on Impact:</strong> Share projects, ideas, and collaborations that create positive social or environmental change.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span><strong>No Spam or Self-Promotion:</strong> Avoid excessive promotional content. Focus on building genuine relationships.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span><strong>Protect Privacy:</strong> Respect others&apos; privacy and don&apos;t share personal information without consent.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Building Meaningful Connections</h3>
+                    <ul className="space-y-2 text-sm opacity-80">
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span>Take time to read profiles thoroughly before reaching out</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span>Send personalized messages that reference shared interests or values</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span>Be clear about your collaboration goals and what you&apos;re looking for</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-gray-400 mt-1">•</span>
+                        <span>Follow up thoughtfully and respect response times</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Reporting & Safety</h3>
+                    <p className="text-sm opacity-80 leading-relaxed">
+                      If you encounter behavior that violates these guidelines, please report it to our team. 
+                      We review all reports promptly and take appropriate action to maintain a safe, 
+                      supportive environment for all members.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-divider pt-4">
+                    <p className="text-xs opacity-70 leading-relaxed">
+                      By using CivicMatch, you agree to these community guidelines. We reserve the right 
+                      to remove content or suspend accounts that violate these standards. These guidelines 
+                      may be updated periodically to reflect our growing community&apos;s needs.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-divider">
+                <button
+                  className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm font-medium"
+                  onClick={() => setShowGuidelines(false)}
+                >
+                  I Understand
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

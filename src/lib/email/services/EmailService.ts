@@ -21,11 +21,10 @@ export interface WelcomeEmailData {
 }
 
 export interface PasswordResetEmailData {
-  displayName: string;
+  displayName?: string;
   resetUrl: string;
-  expiresAt: string;
-  unsubscribeUrl?: string;
-  preferencesUrl?: string;
+  expirationTime?: string;
+  supportUrl?: string;
 }
 
 export interface MissingField {

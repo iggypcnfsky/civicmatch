@@ -723,12 +723,14 @@ Civic Match uses Resend as the primary email service provider combined with Reac
 
 #### 2. Password Reset Email (Immediate)
 - **Trigger**: User requests password reset via Supabase Auth
-- **Template**: `PasswordResetEmail.tsx`
+- **Template**: Custom HTML template in Supabase Dashboard
 - **Content**:
-  - Security-focused messaging
-  - Reset link with expiration time
-  - Alternative contact methods if not requested
-- **Implementation**: Supabase Auth hooks + custom email template override
+  - Professional branding with hosted logo
+  - DM Sans typography with email client fallbacks
+  - Security-focused messaging with 24-hour expiration
+  - Alternative copy-paste URL for accessibility
+- **Implementation**: Supabase built-in email with customized template
+- **Approach**: Single email system using only Supabase (no duplicate custom emails)
 
 #### 3. Profile Completion Reminder (Weekly)
 - **Trigger**: Cron job checking incomplete profiles
@@ -1110,6 +1112,84 @@ EMAIL_TEST_MODE=false # Set to true in development
    - 66% reduction in required tables (3 → 1) without performance compromise
 
 This email system architecture provides a solid foundation for user engagement while maintaining developer productivity and system reliability. The phased approach allows for incremental implementation and testing of each component.
+
+### Password Reset Implementation Lessons Learned
+
+#### Initial Approach and Problems
+The initial implementation attempted to create a dual email system:
+1. **Supabase's built-in `resetPasswordForEmail()`** for secure token generation
+2. **Custom React Email template** sent via Resend for branding
+
+**Issues Encountered:**
+- **Duplicate emails**: Users received both Supabase's email AND our custom email
+- **Token mismatch**: Custom email used placeholder URLs, not Supabase's secure tokens
+- **Session handling**: Reset page couldn't properly detect password recovery sessions
+- **Spam detection**: Security-focused language triggered email spam filters
+
+#### Final Solution: Supabase-Only Approach
+
+**Architecture Decision:**
+- **Single email system**: Use only Supabase's built-in email infrastructure
+- **Custom template**: Replace Supabase's default template with branded HTML
+- **Hosted assets**: Serve logo via `/api/brand/logo` endpoint for email embedding
+- **Typography**: DM Sans with progressive fallbacks for email client compatibility
+
+**Implementation Details:**
+```javascript
+// Simplified password reset flow
+const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${window.location.origin}/auth/reset`
+});
+```
+
+**Custom Template Features:**
+- **Branded design**: CivicMatch colors, logo, and typography
+- **Email client compatibility**: Works across Gmail, Apple Mail, Outlook, etc.
+- **Font integration**: DM Sans with fallbacks for older clients
+- **Spam-safe language**: Avoided phishing-trigger phrases
+- **Responsive design**: Mobile-optimized layout
+
+**Technical Components:**
+1. **Logo hosting**: `/api/brand/logo` serves email-optimized PNG with caching headers
+2. **Template variables**: Uses Supabase's `{{ .ConfirmationURL }}` and `{{ .SiteURL }}`
+3. **Session detection**: Enhanced auth state listener for `PASSWORD_RECOVERY` events
+4. **UI improvements**: Password visibility toggles, proper loading states
+
+#### Key Lessons Learned
+
+1. **Avoid Dual Email Systems**: 
+   - **Problem**: Complex to maintain, confuses users, higher spam risk
+   - **Solution**: Choose one email provider and customize it thoroughly
+
+2. **Leverage Platform Features**: 
+   - **Problem**: Rebuilding authentication flows from scratch
+   - **Solution**: Supabase's email templates are fully customizable and secure
+
+3. **Email Client Compatibility**: 
+   - **Problem**: Modern CSS doesn't work in all email clients
+   - **Solution**: Progressive enhancement with web fonts and fallbacks
+
+4. **Asset Hosting for Emails**: 
+   - **Problem**: Email templates need external asset URLs
+   - **Solution**: Simple API endpoints with proper caching headers
+
+5. **Spam Filter Awareness**: 
+   - **Problem**: Security language triggers spam detection
+   - **Solution**: Use softer, conversational language while maintaining clarity
+
+6. **Authentication Session Handling**: 
+   - **Problem**: Supabase's password reset uses URL fragments and auth events
+   - **Solution**: Proper auth state listeners and URL parameter detection
+
+**Final Architecture Benefits:**
+- ✅ **Single email** per password reset (no duplicates)
+- ✅ **Professional branding** with logo and custom fonts
+- ✅ **Secure tokens** using Supabase's built-in system
+- ✅ **Reliable delivery** through Supabase's email infrastructure
+- ✅ **Low maintenance** - no custom email service to manage
+- ✅ **Spam-safe** language and design patterns
+
+This approach demonstrates that sometimes the best solution is to work with platform capabilities rather than building parallel systems.
 
 ## PWA (MVP) plan
 
