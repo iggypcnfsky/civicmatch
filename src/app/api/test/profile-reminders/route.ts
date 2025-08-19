@@ -4,7 +4,7 @@ import { emailService } from '@/lib/email/services/EmailService';
 
 // This is a test endpoint to manually trigger profile reminder emails
 // Only works in development mode
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Only allow in development
     if (process.env.NODE_ENV === 'production') {

@@ -745,7 +745,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - **Cron Schedule**: Tuesday 12:12 PM UTC (`12 12 * * 2`)
   - **Targeting Logic**: Profiles 0-90% complete, email preferences enabled, no reminder in last 7 days
   - **Completion Calculation**: Weighted scoring system (15 points for core fields, 5-10 for optional)
-  - **Batch Processing**: 10 emails per batch with 1-second delays for rate limiting
+  - **Rate Limiting**: Sequential processing with 600ms delays (1.67 req/sec, under Resend's 2 req/sec limit)
   - **Security**: CRON_SECRET authorization header verification
 - **Files Created**: 
   - `src/lib/email/services/ProfileCompletionService.ts` - Core completion logic
@@ -1139,7 +1139,7 @@ EMAIL_TEST_MODE=false # Set to true in development
 
 3. **Cron Job Best Practices**:
    - **Authorization**: Proper CRON_SECRET verification prevents unauthorized access
-   - **Rate Limiting**: Batch processing (10 emails/batch) with 1-second delays
+   - **Rate Limiting**: Sequential processing with 600ms delays to respect Resend's 2 req/sec limit
    - **Error Handling**: Graceful failure handling with detailed logging
    - **Monitoring**: Comprehensive response data for debugging and analytics
    - **Environment Safety**: Development-only test endpoints with production guards
@@ -1160,6 +1160,18 @@ EMAIL_TEST_MODE=false # Set to true in development
    - **Flexible Timing**: Easy cron schedule changes via vercel.json
    - **UTC Considerations**: All times in UTC with clear timezone documentation
    - **Production Impact**: Tuesday 12:12 PM UTC chosen for optimal global coverage
+
+7. **Rate Limiting Challenges & Solutions**:
+   - **Problem Discovered**: Resend free plan limits to 2 requests per second
+   - **Initial Issue**: Parallel batch processing (10 emails simultaneously) caused 10 failures, 4 successes
+   - **Root Cause**: Sending multiple emails in parallel exceeded rate limits despite 1-second batch delays
+   - **Solution Implemented**: 
+     - **Sequential Processing**: Changed from parallel batches to one-by-one email sending
+     - **Precise Timing**: 600ms delays between emails (1.67 req/sec, safely under 2 req/sec limit)
+     - **Retry Logic**: Added exponential backoff for rate limit errors (1s, 2s, 4s delays)
+     - **Graceful Degradation**: Maintains delays even on errors to preserve rate limiting
+   - **Performance Impact**: 14 emails now take ~8.4 seconds instead of failing
+   - **Alternative Considered**: Upgrading to Resend paid plan for higher limits
 
 This email system architecture provides a solid foundation for user engagement while maintaining developer productivity and system reliability. The phased approach allows for incremental implementation and testing of each component.
 

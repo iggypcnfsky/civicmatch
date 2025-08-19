@@ -200,17 +200,49 @@ export class EmailService {
       // Render the email template
       const html = await renderTemplate();
 
-      // Send email via Resend
-      const { data, error } = await resend.emails.send({
-        from: emailConfig.fromEmail,
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      });
+      // Send email via Resend with retry logic for rate limiting
+      let retryCount = 0;
+      const maxRetries = 3;
+      let data, error;
+
+      while (retryCount <= maxRetries) {
+        try {
+          const result = await resend.emails.send({
+            from: emailConfig.fromEmail,
+            to: Array.isArray(to) ? to : [to],
+            subject,
+            html,
+          });
+          
+          data = result.data;
+          error = result.error;
+          
+          // If successful or non-rate-limit error, break the loop
+          if (!error || !('name' in error) || error.name !== 'rate_limit_exceeded') {
+            break;
+          }
+          
+          // Rate limit hit, wait and retry
+          if (retryCount < maxRetries) {
+            const backoffDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+            console.log(`Rate limit hit, retrying in ${backoffDelay}ms... (attempt ${retryCount + 1}/${maxRetries + 1})`);
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+          }
+          
+        } catch (err) {
+          error = err;
+          break;
+        }
+        
+        retryCount++;
+      }
 
       if (error) {
         console.error('Failed to send email via Resend:', error);
-        return { success: false, error: error.message || 'Email send failed' };
+        const errorMessage = error && typeof error === 'object' && 'message' in error 
+          ? String(error.message) 
+          : 'Email send failed';
+        return { success: false, error: errorMessage };
       }
 
       // Log email send (if userId and emailType provided)

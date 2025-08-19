@@ -29,58 +29,59 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Send reminders with rate limiting
+    // Send reminders with strict rate limiting for Resend free plan (2 requests/second)
     const results = [];
-    const batchSize = 10; // Process 10 emails at a time
-    const delayMs = 1000; // 1 second delay between batches
+    const delayMs = 600; // 600ms delay = ~1.67 requests/second (safely under 2/sec limit)
 
-    for (let i = 0; i < profilesNeedingReminders.length; i += batchSize) {
-      const batch = profilesNeedingReminders.slice(i, i + batchSize);
+    console.log(`📤 Sending ${profilesNeedingReminders.length} emails with 600ms delays for rate limiting...`);
+
+    for (let i = 0; i < profilesNeedingReminders.length; i++) {
+      const profile = profilesNeedingReminders[i];
       
-      console.log(`📤 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(profilesNeedingReminders.length / batchSize)}`);
+      console.log(`📤 Sending ${i + 1}/${profilesNeedingReminders.length} to ${profile.email}`);
 
-      // Process batch in parallel
-      const batchPromises = batch.map(async (profile) => {
-        try {
-          const result = await emailService.sendProfileReminderEmail(
-            profile.email,
-            {
-              displayName: profile.displayName,
-              completionPercentage: profile.completionPercentage,
-              missingFields: profile.missingFields,
-              profileUrl: 'https://civicmatch.app/profile',
-              preferencesUrl: 'https://civicmatch.app/profile#email-preferences'
-            },
-            {
-              userId: profile.userId,
-              emailType: 'profile_reminder',
-              templateVersion: '1.0'
-            }
-          );
+      try {
+        const result = await emailService.sendProfileReminderEmail(
+          profile.email,
+          {
+            displayName: profile.displayName,
+            completionPercentage: profile.completionPercentage,
+            missingFields: profile.missingFields,
+            profileUrl: 'https://civicmatch.app/profile',
+            preferencesUrl: 'https://civicmatch.app/profile#email-preferences'
+          },
+          {
+            userId: profile.userId,
+            emailType: 'profile_reminder',
+            templateVersion: '1.0'
+          }
+        );
 
-          return {
-            userId: profile.userId,
-            email: profile.email,
-            success: result.success,
-            error: result.error || null
-          };
-        } catch (error) {
-          console.error(`Failed to send reminder to ${profile.email}:`, error);
-          return {
-            userId: profile.userId,
-            email: profile.email,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          };
+        results.push({
+          userId: profile.userId,
+          email: profile.email,
+          success: result.success,
+          error: result.error || null
+        });
+
+        // Add delay between emails (except for the last one)
+        if (i < profilesNeedingReminders.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
-      });
 
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
+      } catch (error) {
+        console.error(`Failed to send reminder to ${profile.email}:`, error);
+        results.push({
+          userId: profile.userId,
+          email: profile.email,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
 
-      // Add delay between batches (except for the last batch)
-      if (i + batchSize < profilesNeedingReminders.length) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        // Still delay even on error to maintain rate limiting
+        if (i < profilesNeedingReminders.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
       }
     }
 
