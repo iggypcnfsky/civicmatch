@@ -21,6 +21,7 @@ export default function MobileChatPage() {
   const [name, setName] = useState<string>("");
   const [about, setAbout] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -38,19 +39,37 @@ export default function MobileChatPage() {
     (async () => {
       try {
         if (!id) return;
+        console.log('Loading conversation:', id);
         const { data: sess } = await supabase.auth.getSession();
         const uid = sess?.session?.user?.id || null;
+        console.log('Current user ID:', uid);
         setUserId(uid);
-        if (!uid) { await failSafeLogout(); return; }
+        if (!uid) { 
+          console.log('No user session, logging out');
+          await failSafeLogout(); 
+          return; 
+        }
         // Load conversation to resolve counterpart id
         const { data: conv, error: convErr } = await supabase
           .from("conversations")
           .select("data, updated_at")
           .eq("id", id)
           .maybeSingle();
-        if (convErr) { await failSafeLogout(); return; }
+        if (convErr) { 
+          console.error('Error loading conversation:', convErr);
+          await failSafeLogout(); 
+          return; 
+        }
+        if (!conv) {
+          console.error('Conversation not found:', id);
+          await failSafeLogout();
+          return;
+        }
+        console.log('Conversation loaded:', conv);
         const participants: string[] = (conv?.data?.participantIds as string[] | undefined) || [];
+        console.log('Participants:', participants, 'Current user:', uid);
         const otherId = participants.find((p) => p !== uid) || uid || null;
+        console.log('Other participant ID:', otherId);
         if (otherId) {
           const { data: prof } = await supabase
             .from("profiles")
@@ -75,12 +94,28 @@ export default function MobileChatPage() {
           return { id: m.id, text: m.data?.text || "", isMine: m.sender_id === uid, time };
         });
         setMessages(mapped);
-      } catch { await failSafeLogout(); }
+        setIsLoading(false);
+      } catch (error) { 
+        console.error('Error in conversation loading:', error);
+        setIsLoading(false);
+        await failSafeLogout(); 
+      }
     })();
   }, [id]);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-14 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-text-muted">Loading conversation...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-14 lg:hidden">
+    <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-14">
       {/* Header with avatar/name/about */}
       <header className="p-3 flex items-center gap-3 border rounded-xl border-divider bg-[color:var(--background)]/80 mb-3">
         <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">

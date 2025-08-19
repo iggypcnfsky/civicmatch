@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 
 function StartConversationContent() {
   const router = useRouter();
@@ -23,6 +24,23 @@ function StartConversationContent() {
 
         if (currentUserId === targetUserId) {
           setError('Cannot start conversation with yourself');
+          setStatus('error');
+          return;
+        }
+
+        // Check if user is authenticated and matches the currentUserId
+        const { data: authData } = await fetch('/api/auth/session').then(res => res.json()).catch(() => ({ data: null }));
+        const authenticatedUserId = authData?.user?.id;
+        
+        if (!authenticatedUserId) {
+          // User is not logged in, redirect to login with return URL
+          const returnUrl = encodeURIComponent(`/messages/start?currentUserId=${currentUserId}&targetUserId=${targetUserId}`);
+          router.push(`/?returnUrl=${returnUrl}`);
+          return;
+        }
+
+        if (authenticatedUserId !== currentUserId) {
+          setError('You must be logged in as the correct user to start this conversation');
           setStatus('error');
           return;
         }
