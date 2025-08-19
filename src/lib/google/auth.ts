@@ -1,4 +1,4 @@
-import { JWT } from 'google-auth-library';
+import { JWT, GoogleAuth as GoogleAuthLib } from 'google-auth-library';
 
 /**
  * Google Service Account authentication utility
@@ -10,7 +10,7 @@ export class GoogleAuth {
   /**
    * Get authenticated JWT client for Google APIs
    */
-  static getAuthClient(): JWT {
+  static async getAuthClient(): Promise<JWT> {
     if (!GoogleAuth.instance) {
       // Try JSON credentials first, then fall back to separate key/email
       const jsonCredentials = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -21,19 +21,92 @@ export class GoogleAuth {
       
       if (jsonCredentials) {
         try {
+          console.log('Parsing JSON credentials...');
           const credentials = JSON.parse(jsonCredentials);
-          GoogleAuth.instance = new JWT({
-            email: credentials.client_email,
-            key: credentials.private_key,
-            scopes: [
-              'https://www.googleapis.com/auth/calendar.events',
-              'https://www.googleapis.com/auth/calendar'
-            ]
-          });
+          console.log('JSON parsed successfully, client_email:', credentials.client_email);
+          console.log('Private key length from JSON:', credentials.private_key?.length);
+          console.log('Private key starts with:', credentials.private_key?.substring(0, 50));
+          
+          // Try to create the JWT instance with additional error handling
+          console.log('Creating JWT instance from JSON credentials...');
+          
+          // Try different approaches if the first one fails
+          try {
+            GoogleAuth.instance = new JWT({
+              email: credentials.client_email,
+              key: credentials.private_key,
+              scopes: [
+                'https://www.googleapis.com/auth/calendar.events',
+                'https://www.googleapis.com/auth/calendar'
+              ]
+            });
+            console.log('JWT instance created successfully from JSON (method 1)');
+          } catch (jwtError) {
+            console.error('JWT creation failed with method 1:', jwtError);
+            
+            // Try alternative approach: use the entire credentials object
+            console.log('Trying alternative JWT creation method...');
+            try {
+              GoogleAuth.instance = new JWT({
+                keyFile: undefined, // Don't use keyFile
+                key: credentials.private_key,
+                email: credentials.client_email,
+                subject: undefined,
+                additionalClaims: undefined,
+                scopes: [
+                  'https://www.googleapis.com/auth/calendar.events',
+                  'https://www.googleapis.com/auth/calendar'
+                ]
+              });
+              console.log('JWT instance created successfully from JSON (method 2)');
+            } catch (jwtError2) {
+              console.error('JWT creation failed with method 2:', jwtError2);
+              
+              // Try creating from the full JSON object
+              console.log('Trying method 3: fromJSON...');
+              try {
+                const jwtFromJson = new JWT(credentials);
+                GoogleAuth.instance = jwtFromJson;
+                GoogleAuth.instance.scopes = [
+                  'https://www.googleapis.com/auth/calendar.events',
+                  'https://www.googleapis.com/auth/calendar'
+                ];
+                console.log('JWT instance created successfully from JSON (method 3)');
+              } catch (jwtError3) {
+                console.error('JWT fromJSON failed, trying GoogleAuth method:', jwtError3);
+                
+                // Final attempt: Use GoogleAuth class with JSON credentials
+                try {
+                  console.log('Trying method 4: GoogleAuth with credentials...');
+                  const auth = new GoogleAuthLib({
+                    credentials: credentials,
+                    scopes: [
+                      'https://www.googleapis.com/auth/calendar.events',
+                      'https://www.googleapis.com/auth/calendar'
+                    ]
+                  });
+                  
+                  // Get the JWT client from GoogleAuth
+                  const jwtClient = await auth.getClient();
+                  if (jwtClient instanceof JWT) {
+                    GoogleAuth.instance = jwtClient;
+                    console.log('JWT instance created successfully from GoogleAuth (method 4)');
+                  } else {
+                    throw new Error('GoogleAuth did not return a JWT client');
+                  }
+                } catch (jwtError4) {
+                  console.error('All JWT creation methods failed. Final error:', jwtError4);
+                  console.error('Original error:', jwtError);
+                  throw jwtError; // Throw the original error
+                }
+              }
+            }
+          }
           console.log('Using JSON credentials for authentication');
         } catch (e) {
-          console.error('Failed to parse JSON credentials:', e);
-          throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON format');
+          console.error('Failed to parse or use JSON credentials:', e);
+          console.error('Error details:', e instanceof Error ? e.message : 'Unknown error');
+          throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON format: ' + (e instanceof Error ? e.message : 'Unknown error'));
         }
       } else {
         // Fallback to separate email and key
@@ -97,6 +170,10 @@ export class GoogleAuth {
       console.log('Private key format validated successfully');
     }
 
+    if (!GoogleAuth.instance) {
+      throw new Error('Failed to initialize Google Auth instance');
+    }
+    
     return GoogleAuth.instance;
   }
 
@@ -133,7 +210,9 @@ export class GoogleAuth {
    */
   static async testAuthentication(): Promise<boolean> {
     try {
-      const auth = GoogleAuth.getAuthClient();
+      console.log('Starting Google authentication test...');
+      const auth = await GoogleAuth.getAuthClient();
+      console.log('Got auth client, attempting to authorize...');
       await auth.authorize();
       console.log('Google authentication test successful');
       return true;
@@ -144,8 +223,14 @@ export class GoogleAuth {
       if (error instanceof Error) {
         console.error('Error name:', error.name);
         console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
         if ('code' in error) {
           console.error('Error code:', (error as { code?: string }).code);
+        }
+        
+        // Check if this is the OpenSSL decoder error
+        if (error.message.includes('DECODER routines::unsupported')) {
+          console.error('This is the OpenSSL decoder error - issue with private key format or OpenSSL version in Vercel runtime');
         }
       }
       

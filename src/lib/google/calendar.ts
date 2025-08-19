@@ -1,5 +1,6 @@
 import { google, calendar_v3 } from 'googleapis';
 import { JWT } from 'google-auth-library';
+import { GoogleAuth } from './auth';
 
 interface CalendarEvent {
   id: string;
@@ -26,29 +27,25 @@ interface CreateEventParams {
  * Integrates with Google Meet for automatic video conference links
  */
 export class GoogleCalendarService {
-  private calendar: calendar_v3.Calendar;
-  private auth: JWT;
+  private calendar: calendar_v3.Calendar | null = null;
+  private auth: JWT | null = null;
 
-  constructor() {
-    // Initialize JWT authentication with service account and domain-wide delegation
-    // This allows the service account to create events but show as organizer  
-    this.auth = new JWT({
-      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      scopes: [
-        'https://www.googleapis.com/auth/calendar.events',
-        'https://www.googleapis.com/auth/calendar'
-      ],
-      subject: process.env.GOOGLE_CALENDAR_OWNER_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL // Impersonate calendar owner
-    });
-
-    this.calendar = google.calendar({ version: 'v3', auth: this.auth });
+  private async initializeAuth(): Promise<void> {
+    if (!this.auth) {
+      this.auth = await GoogleAuth.getAuthClient();
+      this.calendar = google.calendar({ version: 'v3', auth: this.auth });
+    }
   }
 
   /**
    * Create a calendar event with Google Meet integration
    */
   async createMeetingEvent(params: CreateEventParams): Promise<CalendarEvent> {
+    await this.initializeAuth();
+    
+    if (!this.calendar) {
+      throw new Error('Calendar service not initialized');
+    }
     try {
       const {
         summary,
@@ -147,6 +144,11 @@ export class GoogleCalendarService {
    * Update an existing calendar event
    */
   async updateMeetingEvent(eventId: string, updates: Partial<CreateEventParams>): Promise<void> {
+    await this.initializeAuth();
+    
+    if (!this.calendar) {
+      throw new Error('Calendar service not initialized');
+    }
     try {
       const updateData: Record<string, unknown> = {};
 
@@ -187,6 +189,11 @@ export class GoogleCalendarService {
    * Delete a calendar event
    */
   async deleteMeetingEvent(eventId: string): Promise<void> {
+    await this.initializeAuth();
+    
+    if (!this.calendar) {
+      throw new Error('Calendar service not initialized');
+    }
     try {
       await this.calendar.events.delete({
         calendarId: process.env.GOOGLE_CALENDAR_ID,
@@ -206,6 +213,11 @@ export class GoogleCalendarService {
    * Get event details
    */
   async getEvent(eventId: string): Promise<CalendarEvent | null> {
+    await this.initializeAuth();
+    
+    if (!this.calendar) {
+      throw new Error('Calendar service not initialized');
+    }
     try {
       const response = await this.calendar.events.get({
         calendarId: process.env.GOOGLE_CALENDAR_ID,
