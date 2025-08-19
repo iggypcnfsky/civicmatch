@@ -732,15 +732,26 @@ Civic Match uses Resend as the primary email service provider combined with Reac
 - **Implementation**: Supabase built-in email with customized template
 - **Approach**: Single email system using only Supabase (no duplicate custom emails)
 
-#### 3. Profile Completion Reminder (Weekly)
-- **Trigger**: Cron job checking incomplete profiles
+#### 3. Profile Completion Reminder (Weekly) ✅ IMPLEMENTED
+- **Trigger**: Cron job checking incomplete profiles (0-90% complete, no recent reminders)
 - **Template**: `ProfileReminderEmail.tsx`
 - **Content**:
-  - Personalized completion percentage
-  - Specific missing fields (skills, causes, bio, etc.)
-  - Benefits of complete profile (better matches)
-  - Direct link to profile editor
-- **Implementation**: Weekly cron → database query → batch email send
+  - Personalized completion percentage with progress bar
+  - Top 3 missing fields with importance explanations
+  - Benefits showcase (Better Matches, More Connections, Project Opportunities)
+  - Direct CTA to complete profile with edit icon
+  - Encouragement message and signature from "Iggy, CivicMatch"
+- **Implementation**: 
+  - **Cron Schedule**: Tuesday 12:12 PM UTC (`12 12 * * 2`)
+  - **Targeting Logic**: Profiles 0-90% complete, email preferences enabled, no reminder in last 7 days
+  - **Completion Calculation**: Weighted scoring system (15 points for core fields, 5-10 for optional)
+  - **Batch Processing**: 10 emails per batch with 1-second delays for rate limiting
+  - **Security**: CRON_SECRET authorization header verification
+- **Files Created**: 
+  - `src/lib/email/services/ProfileCompletionService.ts` - Core completion logic
+  - `src/app/api/cron/weekly-reminders/route.ts` - Cron endpoint
+  - `src/app/api/test/profile-reminders/route.ts` - Testing endpoint (dev only)
+  - `vercel.json` - Cron configuration
 
 #### 4. Weekly Matching Email (Weekly)
 - **Trigger**: Cron job for active users without recent connections
@@ -962,11 +973,11 @@ EMAIL_TEST_MODE=false # Set to true in development
   "crons": [
     {
       "path": "/api/cron/weekly-reminders",
-      "schedule": "0 9 * * 1" // Monday 9 AM UTC
+      "schedule": "12 12 * * 2" // Tuesday 12:12 PM UTC
     },
     {
       "path": "/api/cron/weekly-matching",
-      "schedule": "0 10 * * 3" // Wednesday 10 AM UTC
+      "schedule": "0 10 * * 3" // Wednesday 10 AM UTC (planned)
     }
   ]
 }
@@ -1110,6 +1121,45 @@ EMAIL_TEST_MODE=false # Set to true in development
    - Email preferences and match history moved to profiles.data JSONB
    - Separate email_logs table maintained for analytics and high-volume operations
    - 66% reduction in required tables (3 → 1) without performance compromise
+
+#### Profile Reminder Email Implementation (December 2024)
+
+1. **Production Implementation Complete**: Fully functional profile reminder system:
+   - **ProfileCompletionService**: Intelligent completion calculation with weighted scoring
+   - **Cron Endpoint**: `/api/cron/weekly-reminders` with proper security and batch processing
+   - **Testing Infrastructure**: `/api/test/profile-reminders` for development testing
+   - **Vercel Cron Integration**: Automated scheduling with CRON_SECRET authentication
+
+2. **Profile Completion Logic Lessons**:
+   - **Weighted Scoring**: Essential fields (displayName, bio, skills) worth 15 points each
+   - **Flexible Thresholds**: Initially 20-85%, refined to 0-90% to include more users
+   - **Smart Filtering**: Only targets users with email preferences enabled and no recent reminders
+   - **Field Analysis**: Handles both string and array formats for skills/tags fields
+   - **Special Handling**: Custom logic for aim array structure validation
+
+3. **Cron Job Best Practices**:
+   - **Authorization**: Proper CRON_SECRET verification prevents unauthorized access
+   - **Rate Limiting**: Batch processing (10 emails/batch) with 1-second delays
+   - **Error Handling**: Graceful failure handling with detailed logging
+   - **Monitoring**: Comprehensive response data for debugging and analytics
+   - **Environment Safety**: Development-only test endpoints with production guards
+
+4. **Database Query Optimization**:
+   - **Efficient Filtering**: Single query fetches all profiles, then filters in-memory
+   - **Recent Reminder Check**: Separate queries to email_logs prevent duplicate sends
+   - **JSONB Flexibility**: Leverages existing profile.data structure without schema changes
+   - **Email Logging**: Proper tracking with template versions and recipient data
+
+5. **Testing and Debugging Insights**:
+   - **Preview Limitations**: Initially showed only 3 profiles due to `.slice(0, 3)` limitation
+   - **Threshold Issues**: Too-restrictive completion thresholds excluded most users
+   - **Singleton Patterns**: Lazy initialization prevents environment variable issues during testing
+   - **Postman Testing**: Clear documentation for manual API testing workflows
+
+6. **Schedule Configuration**:
+   - **Flexible Timing**: Easy cron schedule changes via vercel.json
+   - **UTC Considerations**: All times in UTC with clear timezone documentation
+   - **Production Impact**: Tuesday 12:12 PM UTC chosen for optimal global coverage
 
 This email system architecture provides a solid foundation for user engagement while maintaining developer productivity and system reliability. The phased approach allows for incremental implementation and testing of each component.
 
