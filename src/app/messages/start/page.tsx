@@ -28,25 +28,22 @@ function StartConversationContent() {
           return;
         }
 
-        // Check if user is authenticated and matches the currentUserId
-        const { data: authData } = await fetch('/api/auth/session').then(res => res.json()).catch(() => ({ data: null }));
-        const authenticatedUserId = authData?.user?.id;
+        // Check if user is authenticated
+        const { data: session } = await supabase.auth.getSession();
+        const authenticatedUserId = session?.session?.user?.id;
         
         if (!authenticatedUserId) {
-          // User is not logged in, redirect to login with return URL
+          // User is not logged in, redirect to main page with return URL
           const returnUrl = encodeURIComponent(`/messages/start?currentUserId=${currentUserId}&targetUserId=${targetUserId}`);
-          router.push(`/?returnUrl=${returnUrl}`);
+          window.location.href = `/?returnUrl=${returnUrl}`;
           return;
         }
 
-        if (authenticatedUserId !== currentUserId) {
-          setError('You must be logged in as the correct user to start this conversation');
-          setStatus('error');
-          return;
-        }
+        // Use the authenticated user's ID instead of the email parameter
+        // This is more secure and handles cases where currentUserId might be outdated
 
         // Call our API endpoint to handle conversation creation
-        const response = await fetch(`/api/messages/start?currentUserId=${currentUserId}&targetUserId=${targetUserId}`);
+        const response = await fetch(`/api/messages/start?currentUserId=${authenticatedUserId}&targetUserId=${targetUserId}`);
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

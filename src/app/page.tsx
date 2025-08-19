@@ -63,6 +63,15 @@ export default function ExplorePage() {
           }
         } catch {}
         try { window.dispatchEvent(new Event("civicmatch:auth-changed")); } catch {}
+        
+        // Handle returnUrl after successful authentication
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          const returnUrl = urlParams.get('returnUrl');
+          if (returnUrl) {
+            window.location.href = decodeURIComponent(returnUrl);
+          }
+        }
       })();
     }
   }, [isAuthenticated]);
