@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cm-cache-v2';
+const CACHE_NAME = 'cm-cache-v3';
 const OFFLINE_URL = '/offline';
 
 self.addEventListener('install', (event) => {
@@ -34,6 +34,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req).catch(() => caches.match(OFFLINE_URL))
     );
+    return;
+  }
+
+  // Skip caching for API routes
+  if (url.pathname.startsWith('/api/')) {
     return;
   }
 

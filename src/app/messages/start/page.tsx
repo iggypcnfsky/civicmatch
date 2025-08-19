@@ -43,7 +43,12 @@ function StartConversationContent() {
         // This is more secure and handles cases where currentUserId might be outdated
 
         // Call our API endpoint to handle conversation creation
-        const response = await fetch(`/api/messages/start?currentUserId=${authenticatedUserId}&targetUserId=${targetUserId}`);
+        const cacheBuster = Date.now();
+        const response = await fetch(`/api/messages/start?currentUserId=${authenticatedUserId}&targetUserId=${targetUserId}&_t=${cacheBuster}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

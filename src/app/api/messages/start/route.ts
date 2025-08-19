@@ -112,11 +112,18 @@ export async function GET(request: NextRequest) {
     // Return JSON with conversation ID for client-side redirect
     const redirectUrl = `/messages/${conversationId}`;
     
-    return NextResponse.json({ 
+    const response = NextResponse.json({ 
       success: true, 
       conversationId, 
       redirectUrl 
     });
+    
+    // Add cache-busting headers to prevent caching
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
 
   } catch (error) {
     console.error('Unexpected error in start conversation:', error);
