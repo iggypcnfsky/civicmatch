@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/weekly-reminders",
       "schedule": "15 12 * * 2"
+    },
+    {
+      "path": "/api/cron/weekly-matching",
+      "schedule": "0 9 * * 1"
     }
   ]
 }

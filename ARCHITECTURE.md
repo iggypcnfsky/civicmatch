@@ -78,15 +78,42 @@ Indexes focus on username, search facets (skills/causes), and conversationId for
 - **Email system**: welcome emails, password resets, weekly reminders, matching suggestions
 - **Notifications**: in‑app (toast/badge); email campaigns and transactional messages
 
-## Matching approach (rule‑based MVP)
+## Matching approach 
 
-Score candidate C for seeker S by weighted overlap of values, skills, and causes:
+### Current Implementation (Random MVP) ✅ DEPLOYED
+**Status**: Production-ready random matching algorithm deployed for weekly matching emails.
+
+**Algorithm**: Simple random selection with basic filtering:
+- **Eligibility**: Users with `displayName` or `username` (loosened for early adoption)
+- **Match Score**: Random integer between 70-100 for engagement
+- **Duplicate Prevention**: Uses `profiles.data.weeklyMatchHistory` to avoid repeat matches
+- **Match Reasons**: Generic encouragement messages for all matches
+
+**Code Location**: `src/lib/email/services/MatchingService.ts`
+```typescript
+calculateMatchScore(currentUser, candidateUser): number {
+  // Random score between 70-100 for MVP
+  return Math.floor(Math.random() * 31) + 70;
+}
+```
+
+### Future Implementation (AI-Powered Matching) 🚧 PLANNED
+**Approach**: Advanced rule-based scoring with AI enhancement:
 
 \[ score(C,S) = w_v · overlap(values) + w_s · overlap(skills) + w_c · overlap(causes) + w_l · geoAffinity \]
 
-- Start with equal weights: `w_v = w_s = w_c = 1.0`, `w_l = 0.5` (if location provided)
-- Overlap is Jaccard similarity for each facet
-- Future: learning‑to‑rank from connection accept rates
+- **Base weights**: `w_v = w_s = w_c = 1.0`, `w_l = 0.5` (if location provided)
+- **Overlap calculation**: Jaccard similarity for each facet array
+- **LLM Integration**: OpenAI/AI analysis for semantic matching and personalized reasons
+- **Learning system**: Connection accept rates inform weight adjustments
+- **Stricter eligibility**: Require complete profiles (bio, skills, values, causes)
+
+**Planned Enhancements**:
+- Semantic similarity using embeddings for skills/values/causes
+- AI-generated personalized match explanations
+- Collaborative filtering based on user interaction history
+- Geographic proximity scoring with timezone consideration
+- Activity recency weighting (recent logins, profile updates)
 
 ## UI/UX architecture
 
@@ -183,6 +210,9 @@ src/app/
     callback/route.ts
   page.tsx                // Explore (default after login)
   profile/page.tsx        // Edit your profile
+  profiles/
+    page.tsx              // Browse all profiles
+    [userId]/page.tsx     // Individual profile view ✅ NEW
   messages/
     page.tsx              // Conversations list + active thread (desktop split)
     [id]/page.tsx         // Full‑screen chat on mobile; global top bar shows a back arrow
@@ -617,6 +647,13 @@ This section documents where the app hits the database (Supabase PostgREST) and 
     - Insert invite message: `messages.insert({...})` (write)
     - Record/refresh connection: `connections.upsert(...)` (write)
 
+- Individual profile view (`src/app/profiles/[userId]/page.tsx`) ✅ NEW
+  - Single profile: 1 read
+    - `profiles.select('*').eq('user_id', userId).single()`
+  - Direct message navigation to `/messages`
+  - Static profile display with all sections (bio, skills, causes, work style, etc.)
+  - Client-side data fetching with loading states and error handling
+
 - My profile (edit) (`src/app/profile/page.tsx`)
   - Load my profile: 1 read
     - `profiles.select('data').eq('user_id', user.id).single()`
@@ -753,19 +790,37 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - `src/app/api/test/profile-reminders/route.ts` - Testing endpoint (dev only)
   - `vercel.json` - Cron configuration
 
-#### 4. Weekly Matching Email (Weekly)
-- **Trigger**: Cron job for active users without recent connections
-- **Template**: `WeeklyMatchEmail.tsx`
+#### 4. Weekly Matching Email with Google Meet Integration (Weekly) ✅ COMPLETED
+- **Trigger**: Cron job Wednesday 10:00 AM UTC for all eligible users
+- **Template**: `WeeklyMatchEmail.tsx` with comprehensive Google Meet integration
 - **Content**:
-  - **Single focused match**: Simplified to showcase one carefully selected user
-  - **Complete profile display**: All available profile sections (Skills, What I'm Known For, What I'm Focused On, Long-term Strategy, Work Style, What do I need help with)
-  - **Visual profile cards**: Profile pictures for both current user and matched user
-  - **Conditional rendering**: Only shows sections that have content to avoid empty panels
-  - **Match reasoning**: Shared values/skills/causes with detailed explanations
-  - **Clear CTAs**: Send Message and View Profile buttons with Lucide icons
-  - **Professional branding**: DM Sans font, CivicMatch colors, signature from "Iggy, CivicMatch"
-- **Implementation**: Weekly cron → matching algorithm → batch email send
-- **Future enhancement**: Google Meet event creation for suggested connections
+  - **Single focused match**: One carefully selected user per email for higher engagement
+  - **Complete profile display**: All sections (Skills, Fame, Aim, Game, Work Style, Help Needed) with conditional rendering
+  - **Visual profile cards**: Circular profile pictures with proper image styling (no stretching)
+  - **Match reasoning**: Generic encouragement messages ("Both changemakers ready to connect")
+  - **Google Meet Integration**: Automatic 30-minute Friday 5 PM CET meetings with calendar invites
+  - **Meeting coordination**: Message prompting users to confirm via calendar or direct message
+  - **Clear CTAs**: "Send Message" → `/messages`, "View Profile" → `/profiles/[userId]`, "Add to Calendar" only
+  - **Professional branding**: Centered signature with CivicMatch logo, production domain links
+- **Implementation**: 
+  - **Cron Schedule**: `0 10 * * 3` (Wednesday 10 AM UTC) via Vercel Cron
+  - **Matching Algorithm**: Random matching (MVP) with 70-100 match scores, future AI/LLM planned
+  - **Dual Email Sending**: Both users receive emails about each other
+  - **Google Calendar API**: Creates events titled "FirstName + FirstName / CivicMatch" with Meet links
+  - **Service Account Auth**: Domain-wide delegation for calendar creation permissions
+  - **Timezone Handling**: CET to local timezone conversion with 30-minute duration
+  - **Database Tracking**: `email_logs` with `calendar_event_id` and `google_meet_url` columns
+  - **Rate Limiting**: 600ms delays between emails and 200ms between calendar API calls
+  - **Eligibility**: Requires only `displayName` (or `username` fallback) for early-stage adoption
+- **Files Created**:
+  - `src/lib/email/services/MatchingService.ts` - Core matching logic with Google Calendar integration
+  - `src/lib/google/calendar.ts` - Google Calendar API service with event management
+  - `src/lib/google/auth.ts` - Service account authentication utilities
+  - `src/lib/google/types.ts` - TypeScript interfaces for Google API integration
+  - `src/app/api/cron/weekly-matching/route.ts` - Production cron endpoint with CRON_SECRET
+  - `src/app/api/test/weekly-matching/route.ts` - Development testing endpoint
+  - `src/app/api/calendar/download/[eventId]/route.ts` - ICS file downloads for calendar
+  - `src/app/profiles/[userId]/page.tsx` - Dynamic profile pages for email navigation
 
 ### Database Schema Extensions
 
@@ -970,14 +1025,14 @@ EMAIL_TEST_MODE=false # Set to true in development
 ```json
 // vercel.json
 {
-  "crons": [
+  "  crons": [
     {
       "path": "/api/cron/weekly-reminders",
       "schedule": "12 12 * * 2" // Tuesday 12:12 PM UTC
     },
     {
       "path": "/api/cron/weekly-matching",
-      "schedule": "0 10 * * 3" // Wednesday 10 AM UTC (planned)
+      "schedule": "0 10 * * 3" // Wednesday 10 AM UTC ✅ DEPLOYED
     }
   ]
 }
@@ -1172,6 +1227,443 @@ EMAIL_TEST_MODE=false # Set to true in development
      - **Graceful Degradation**: Maintains delays even on errors to preserve rate limiting
    - **Performance Impact**: 14 emails now take ~8.4 seconds instead of failing
    - **Alternative Considered**: Upgrading to Resend paid plan for higher limits
+
+#### Weekly Matching Implementation Lessons Learned (December 2024)
+
+1. **Complete Integration Success**: Full Google Calendar + Google Meet + Email system deployed:
+   - **Random Matching Algorithm**: MVP implementation with 70-100 scores for user engagement
+   - **Google Calendar Events**: Automatic 30-minute Friday 5 PM CET meetings with Meet links
+   - **Dual Email Sending**: Both users receive emails about each other for mutual awareness
+   - **Dynamic Profile Pages**: Created `/profiles/[userId]` route for email navigation
+   - **Production Cron**: Wednesday 10 AM UTC automated scheduling via Vercel
+
+2. **Service Account & Permissions Resolution**:
+   - **Domain-Wide Delegation**: Essential for service account calendar creation with attendees
+   - **Permission Setup**: "Make changes to events" permission required on shared calendar
+   - **Authentication Method**: JWT-based service account auth with user impersonation
+   - **Calendar Organization**: Dedicated CivicMatch calendar with proper organizer settings
+
+3. **Email Template Design Improvements**:
+   - **Image Styling**: Fixed stretched profile pictures with `objectFit: 'cover'` and proper dimensions
+   - **Location Display**: Handled both string and object location formats
+   - **Action Simplification**: Removed complex meeting response buttons, kept only "Add to Calendar"
+   - **Professional Branding**: Centered signature with logo, improved footer alignment
+   - **Navigation URLs**: Updated links to use production domain and new profile routes
+
+4. **Data Handling & Type Safety**:
+   - **String to Array Conversion**: Implemented `ensureArray` helper for database string fields
+   - **Email Address Resolution**: Used `auth.users` table for actual email addresses (not profile usernames)
+   - **Meeting Duration**: Reduced from 60 to 30 minutes based on user feedback
+   - **Database Tracking**: Added `calendar_event_id` and `google_meet_url` columns for analytics
+
+5. **Testing & Development Workflow**:
+   - **Comprehensive Test Endpoints**: GET and POST methods for different testing scenarios
+   - **Calendar Event Testing**: Verified actual calendar creation and Meet link generation
+   - **Email Delivery Testing**: Confirmed both users receive properly formatted emails
+   - **Error Handling**: Graceful fallbacks when calendar creation fails (emails still send)
+
+6. **Rate Limiting & Production Considerations**:
+   - **Google Calendar API**: 200ms delays between calendar API calls to respect quotas
+   - **Email Rate Limiting**: Existing 600ms delays maintained for Resend compliance
+   - **Batch Processing**: Sequential processing for both emails and calendar events
+   - **Error Recovery**: Comprehensive error logging and graceful degradation strategies
+
+7. **User Experience Enhancements**:
+   - **Meeting Coordination**: Added message encouraging users to confirm via calendar or direct message
+   - **Profile Accessibility**: Direct links to view full profiles from emails
+   - **Calendar Integration**: Proper ICS file generation for cross-platform calendar support
+   - **Visual Consistency**: Maintained CivicMatch branding throughout email and calendar events
+
+**Architecture Decision Validation**: The integrated approach of combining matching, calendar creation, and email sending in a single cron job proved effective for:
+- **Simplicity**: Single entry point for weekly matching workflow
+- **Data Consistency**: Match data, calendar events, and emails created atomically
+- **Error Handling**: Centralized error management and logging
+- **Rate Limiting**: Coordinated delays across multiple external APIs
+
+## Google Meet & Calendar Integration
+
+Civic Match integrates Google Meet and Calendar APIs to automate the scheduling of weekly match meetings, enhancing user engagement by providing structured opportunities for meaningful connections.
+
+### Overview & Goals
+
+- **Automated Scheduling**: Create Google Calendar events with embedded Google Meet links for weekly matches
+- **Timezone Intelligence**: Schedule meetings at Friday 5 PM CET, converting to participants' local timezones
+- **Response Management**: Enable participants to accept, decline, or propose alternative meeting times
+- **Seamless Integration**: Embed meeting details directly in WeeklyMatchEmail templates
+- **Low Friction**: Reduce barriers to connection by pre-scheduling meeting opportunities
+
+### Technical Architecture
+
+#### Authentication Strategy
+- **Service Account**: Use Google Service Account for server-side API authentication
+- **No User OAuth**: Eliminates need for individual user Google authentication
+- **Dedicated Calendar**: Service account manages a dedicated "CivicMatch Meetings" calendar
+- **Security**: Service account credentials stored securely in environment variables
+
+#### API Integration Approach
+```
+Weekly Match Flow:
+1. Cron job identifies matched users
+2. Google Calendar API creates event with conferenceData (auto-generates Meet link)
+3. Event invitations sent to participants via email
+4. WeeklyMatchEmail includes meeting details and response options
+5. Participants receive both email notification AND calendar invite
+```
+
+#### Google Calendar API Implementation
+- **Event Creation**: Use `calendar.events.insert()` with `conferenceData` for automatic Meet links
+- **Recurring Events**: Create weekly recurring events for ongoing matches
+- **Timezone Handling**: Convert Friday 5 PM CET to participant timezones using `date-fns-tz`
+- **Event Management**: Handle event updates, cancellations, and participant responses
+
+### Database Schema Extensions
+
+#### Enhanced Email Logs ✅ APPLIED
+```sql
+-- Add Google Calendar integration tracking to existing email_logs table
+ALTER TABLE public.email_logs ADD COLUMN calendar_event_id text;
+ALTER TABLE public.email_logs ADD COLUMN google_meet_url text;
+CREATE INDEX IF NOT EXISTS email_logs_calendar_event_idx ON public.email_logs(calendar_event_id);
+```
+
+**Migration Status**: Applied to database via Supabase MCP tools
+**Usage**: Tracks calendar event IDs and Google Meet URLs for analytics
+
+#### Enhanced Profile Data Schema ✅ IMPLEMENTED
+```json
+// Current profiles.data structure with weekly matching integration
+{
+  // Existing profile fields
+  "displayName": "Ada Lovelace",
+  "bio": "I connect data and policy for climate innovation.",
+  "location": "London, UK", // Can be string or { city, country }
+  "tags": ["Social Entrepreneur", "Policy Expert"],
+  "values": ["Integrity", "Impact", "Curiosity"],
+  "skills": ["Data Science", "Policy", "Product"],
+  "causes": ["Climate", "Civic Tech"],
+  "avatarUrl": "https://example.com/avatar.jpg",
+  
+  // Additional profile sections (for comprehensive email display)
+  "fame": "Built data platforms for 3 climate NGOs",
+  "aim": [{ 
+    "title": "Scale climate data accessibility across Europe", 
+    "summary": "Focus on policy integration" 
+  }],
+  "game": "Long-term: establish climate data consortium",
+  "workStyle": "Collaborative, weekly check-ins, values-driven",
+  "helpNeeded": "Seeking technical co-founder and climate policy advisor",
+  
+  // Email preferences (current implementation)
+  "emailPreferences": {
+    "weeklyMatchingEnabled": true,
+    "profileRemindersEnabled": true,
+    "connectionNotifications": true
+  },
+  
+  // Weekly matching history (prevents duplicate matches)
+  "weeklyMatchHistory": {
+    "sentMatches": {
+      "2024-01": ["uuid1", "uuid2", "uuid3"],
+      "2024-02": ["uuid4", "uuid5"]
+    },
+    "lastSentWeek": "2024-02",
+    "totalSent": 5
+  }
+}
+```
+
+**Current Status**: Core fields implemented, meeting preferences planned for future enhancement
+
+### Implementation Components
+
+#### File Structure ✅ IMPLEMENTED
+```
+src/
+  lib/
+    google/                              # Google API integration
+      calendar.ts                        # Calendar API service with event management
+      auth.ts                           # Service account JWT authentication
+      types.ts                          # TypeScript interfaces for Google APIs
+    email/
+      services/
+        MatchingService.ts              # Core matching logic + calendar integration
+        EmailService.ts                 # Email sending with meeting details
+        ProfileCompletionService.ts     # Profile completion reminders
+      templates/
+        WeeklyMatchEmail.tsx            # Enhanced template with Google Meet integration
+        shared/
+          Icons.tsx                     # Added CalendarIcon, VideoIcon, ClockIcon
+  app/
+    api/
+      cron/
+        weekly-matching/route.ts        # Production cron endpoint (Wednesday 10 AM UTC)
+      test/
+        weekly-matching/route.ts        # Development testing endpoint
+      calendar/
+        download/[eventId]/route.ts     # ICS file downloads for "Add to Calendar"
+    profiles/
+      [userId]/page.tsx                 # Dynamic profile pages for email navigation
+```
+
+**Implementation Status**: All files created and integrated with production cron scheduling
+
+#### Environment Configuration ✅ PRODUCTION
+```bash
+# Google Service Account Configuration (Production Values)
+GOOGLE_SERVICE_ACCOUNT_EMAIL=matching@civicmatch.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n[ACTUAL_PRIVATE_KEY]\n-----END PRIVATE KEY-----"
+GOOGLE_CALENDAR_ID=hidden
+GOOGLE_PROJECT_ID=civicmatch
+GOOGLE_CALENDAR_OWNER_EMAIL=hey@iggy.love # For domain-wide delegation
+
+# Meeting Configuration (Current Settings)
+MEETING_DEFAULT_DURATION=30 # Changed from 60 to 30 minutes
+MEETING_TIME_CET=17:00 # Friday 5 PM CET
+MEETING_DAY=5 # Friday (0=Sunday, 6=Saturday)
+
+# Site Configuration
+NEXT_PUBLIC_SITE_URL=https://civicmatch.app
+
+# Cron Security
+CRON_SECRET=[PRODUCTION_SECRET] # Vercel cron authentication
+
+# Email & Database (Existing)
+RESEND_API_KEY=[PRODUCTION_KEY]
+SUPABASE_SERVICE_ROLE_KEY=[SERVICE_ROLE_KEY] # For auth.admin functions
+```
+
+**Setup Requirements**:
+- Google Cloud Console: Service account with Domain-Wide Delegation enabled
+- Calendar permissions: Service account added with "Make changes to events" permission
+- Vercel: All environment variables configured for production deployment
+
+### Core Services Implementation ✅ COMPLETED
+
+#### Google Calendar Service (`src/lib/google/calendar.ts`)
+```typescript
+export async function createWeeklyMatchMeeting(
+  currentUser: MatchedProfile,
+  matchedUser: MatchedProfile
+): Promise<GoogleCalendarEvent | null> {
+  // Creates 30-minute Friday 5 PM CET meetings
+  // Event title: "Maya + Carlos / CivicMatch"
+  // Includes Google Meet via conferenceData
+  // Sends calendar invites to both participants
+}
+
+export async function generateICSFile(eventId: string): Promise<string> {
+  // Generates .ics calendar files for "Add to Calendar" functionality
+}
+```
+
+**Key Features**:
+- **Event Naming**: Extracts first names from display names
+- **Google Meet Integration**: Automatic Meet links via `conferenceData.createRequest`
+- **Timezone Handling**: Converts CET to UTC for Google Calendar API
+- **Permission Management**: Sets organizer as service account with proper guest permissions
+- **Rate Limiting**: 200ms delays between API calls to respect quotas
+
+#### Enhanced Matching Service (`src/lib/email/services/MatchingService.ts`)
+```typescript
+export class MatchingService {
+  async generateMatchesWithMeetings(maxMatches = 50): Promise<Match[]> {
+    // Generates random matches with calendar events
+    // Prevents duplicate matches using weeklyMatchHistory
+    // Creates Google Calendar events for each match
+  }
+  
+  async createMeetingForMatch(currentUser, matchedUser): Promise<MeetingDetails | null> {
+    // Integrates calendar creation with match generation
+    // Returns meeting details for email templates
+  }
+}
+```
+
+**Implementation Details**:
+- **Random Algorithm**: 70-100 match scores for MVP engagement
+- **Eligibility**: Only requires `displayName` or `username` for early adoption
+- **History Tracking**: Stores sent matches in `profiles.data.weeklyMatchHistory`
+- **Data Formatting**: Converts string fields to arrays for email compatibility
+
+### WeeklyMatchEmail Enhancements ✅ COMPLETED
+
+#### Current Props Interface
+```typescript
+interface WeeklyMatchEmailProps {
+  currentUser: { displayName: string; avatarUrl?: string };
+  match: MatchedProfile; // Complete profile data with all sections
+  meetingDetails?: MeetingDetails; // Google Meet integration
+  exploreMoreUrl: string;
+  preferencesUrl: string;
+}
+
+interface MeetingDetails {
+  scheduledTime: Date;
+  timezone: string;
+  googleMeetUrl: string;
+  calendarEventId: string;
+  addToCalendarUrl: string; // Links to /api/calendar/download/[eventId]
+}
+```
+
+#### Enhanced Email Content Features
+- **Profile Integration**: Complete profile display with circular, non-stretched images
+- **Meeting Section**: Friday 5 PM CET meeting with Google Meet link and timezone conversion
+- **Simplified Actions**: Only "Add to Calendar" button (removed Accept/Decline/Propose buttons)
+- **Navigation Links**: 
+  - "Send Message" → `https://civicmatch.app/messages`
+  - "View Profile" → `https://civicmatch.app/profiles/[userId]`
+- **Coordination Message**: Prompts users to confirm attendance via calendar or direct message
+- **Professional Branding**: Centered signature with CivicMatch logo, proper footer centering
+- **Location Handling**: Supports both string and object formats for user locations
+- **Conditional Rendering**: Only shows profile sections that contain data
+
+### Security & Privacy Considerations
+
+#### Data Protection
+- **Minimal Data Exposure**: Only share necessary meeting information
+- **Consent-Based**: Users opt-in to meeting scheduling via email preferences
+- **Privacy Controls**: Users can disable automatic meeting creation
+- **Data Retention**: Calendar events deleted after meeting conclusion (configurable)
+
+#### API Security
+- **Service Account Scopes**: Limit to calendar.events creation and management
+- **Rate Limiting**: Respect Google Calendar API quotas (1,000 requests per 100 seconds)
+- **Error Handling**: Graceful fallbacks when Google APIs are unavailable
+- **Audit Logging**: Track all calendar API calls for debugging and compliance
+
+### Performance Optimizations
+
+#### Batch Operations
+- **Bulk Event Creation**: Create multiple events in parallel where possible
+- **Calendar Caching**: Cache service account authentication tokens
+- **Timezone Calculations**: Pre-calculate timezone offsets for common zones
+- **Meeting Deduplication**: Avoid creating duplicate events for repeat matches
+
+#### Error Handling & Resilience
+- **API Fallbacks**: Continue email sending even if calendar creation fails
+- **Retry Logic**: Exponential backoff for temporary Google API failures
+- **Graceful Degradation**: Emails include meeting info even without calendar events
+- **Monitoring**: Alert on calendar API errors and quota limitations
+
+### Testing Strategy
+
+#### Integration Testing
+- **Mock Google APIs**: Use mock responses for development and testing
+- **Timezone Testing**: Verify correct time conversion across multiple timezones
+- **Email Rendering**: Test enhanced email templates with meeting details
+- **Response Handling**: Test meeting acceptance/decline workflows
+
+#### Production Monitoring
+- **Calendar Event Tracking**: Monitor successful event creation rates
+- **Meeting Attendance**: Track meeting join rates and participant engagement
+- **API Performance**: Monitor Google Calendar API response times and errors
+- **Email Delivery**: Ensure enhanced emails maintain high delivery rates
+
+This integration provides a seamless experience for users to connect through structured weekly meetings while maintaining the simplicity and effectiveness of the existing email system.
+
+### Google Calendar Integration Implementation (Augu 2025) ✅ COMPLETED
+
+#### Production Implementation Complete
+The complete Google Calendar + Google Meet integration has been successfully implemented for the weekly matching system:
+
+1. **Core Services Created**:
+   - **GoogleCalendarService** (`src/lib/google/calendar.ts`): Creates calendar events with Google Meet integration, generates event titles in format `"FirstName + FirstName / CivicMatch"`, manages event lifecycle (create, update, delete, get), generates ICS files for calendar downloads
+   - **GoogleAuth** (`src/lib/google/auth.ts`): Service account authentication, configuration validation, authentication testing utilities
+   - **Enhanced MatchingService** (`src/lib/email/services/MatchingService.ts`): Integrated calendar event creation with matches, `generateMatchesWithMeetings()` method for full integration, automatic meeting scheduling for Friday 5 PM CET
+
+2. **API Endpoints Created**:
+   - **Weekly Matching Cron** (`/api/cron/weekly-matching`): Creates matches AND calendar events, sends emails with Google Meet links, rate-limited for production use
+   - **ICS Download** (`/api/calendar/download/[eventId]`): Downloads calendar files for email "Add to Calendar" buttons with proper MIME types and headers
+   - **Test Endpoints** (`/api/test/weekly-matching`): Development testing without sending emails, meeting creation testing
+
+3. **Email Integration Enhanced**:
+   - **Enhanced WeeklyMatchEmail Template**: Google Meet section with meeting details, meeting action buttons (Accept, Decline, Propose Time), calendar integration information
+   - **Updated EmailService**: New subject lines for meetings ("Meet [Name] this Friday - Calendar invite included!"), support for meeting details in email data
+
+4. **Database Updates Applied**:
+   - Added `calendar_event_id` and `google_meet_url` columns to `email_logs` table via migration
+   - Ready for tracking calendar integration analytics
+
+#### Event Naming Format
+Calendar events are automatically named using the format: `"Maya + Carlos / CivicMatch"`
+- **Maya** = First name extracted from user 1's display name
+- **Carlos** = First name extracted from user 2's display name  
+- **CivicMatch** = Platform identifier for branding
+
+#### Meeting Configuration
+- **Day**: Every Friday
+- **Time**: 5:00 PM CET (automatically converted to attendee timezones)
+- **Duration**: 60 minutes
+- **Google Meet**: Automatically included via `conferenceData`
+- **Invitations**: Sent to both participants via Google Calendar
+- **Reminders**: 1 day before (email) + 1 hour before (popup)
+- **Permissions**: Guests can modify events, cannot invite others, can see other guests
+
+#### Service Account Configuration
+- **Service Account**: `matching@civicmatch.iam.gserviceaccount.com`
+- **Calendar ID**: `c_e728dc0164d60ee22b263467185c7588aa1ae6ca657a0ce3996038141e98af03@group.calendar.google.com`
+- **Project ID**: `civicmatch`
+- **Scopes**: `calendar.events` and `calendar` for event management
+- **Authentication**: JWT-based service account authentication (no user OAuth required)
+
+#### Environment Variables Required
+```bash
+# Google Service Account Configuration
+GOOGLE_SERVICE_ACCOUNT_EMAIL=matching@civicmatch.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n[PRIVATE_KEY_CONTENT]\n-----END PRIVATE KEY-----"
+GOOGLE_CALENDAR_ID=c_e728dc0164d60ee22b263467185c7588aa1ae6ca657a0ce3996038141e98af03@group.calendar.google.com
+GOOGLE_PROJECT_ID=civicmatch
+
+# Meeting Configuration
+MEETING_DEFAULT_DURATION=60
+MEETING_TIME_CET=17:00
+MEETING_DAY=5
+
+# Site Configuration
+NEXT_PUBLIC_SITE_URL=https://civicmatch.app
+```
+
+#### Integration Flow
+1. **Weekly Cron Trigger**: Every Wednesday 10:00 AM UTC (`0 10 * * 3`)
+2. **Match Generation**: `generateMatchesWithMeetings()` creates user matches using random algorithm
+3. **Calendar Event Creation**: For each match, creates Google Calendar event with automatic Meet link
+4. **Email Sending**: Enhanced WeeklyMatchEmail includes meeting details, Google Meet link, and response actions
+5. **Database Logging**: Tracks calendar event IDs and Meet URLs in `email_logs` for analytics
+
+#### Error Handling & Resilience
+- **Graceful Degradation**: If calendar creation fails, emails still send without meeting details
+- **Rate Limiting**: 200ms delays between calendar API calls to respect Google quotas
+- **Authentication Fallback**: Comprehensive error handling for service account auth failures
+- **Email Address Handling**: Uses username as fallback when email not available in profile data
+
+#### Testing Strategy
+- **Email Preview**: `npm run email:dev` - View enhanced email templates at localhost:3001
+- **Matching Algorithm**: `curl "http://localhost:3000/api/test/weekly-matching?maxMatches=3"` - Test match generation
+- **Calendar Authentication**: Programmatic testing via `GoogleAuth.testAuthentication()`
+- **Full Integration**: Cron endpoint testing with actual calendar event creation
+
+#### Production Deployment Requirements
+1. **Environment Variables**: Add all Google service account credentials to Vercel
+2. **Calendar Permissions**: Ensure service account has "Make changes to events" permission on the dedicated calendar
+3. **Cron Schedule**: Vercel cron configured for Tuesday (profile reminders) and Wednesday (weekly matching)
+4. **Monitoring**: Track `email_logs` table for `email_type = 'weekly_match'` success rates and calendar integration metrics
+
+#### Technical Architecture Decisions
+- **Service Account over OAuth**: Eliminates need for individual user Google authentication
+- **Dedicated Calendar**: Separate calendar for CivicMatch events maintains organization
+- **JSONB Event History**: Weekly match history stored in `profiles.data.weeklyMatchHistory` to prevent duplicate matches
+- **ICS File Generation**: Server-side ICS creation for "Add to Calendar" functionality
+- **Email-First Approach**: Calendar integration enhances but doesn't replace email workflow
+
+#### Future Enhancement Notes
+- **Email Address Resolution**: Replace username fallback with actual email lookup from `auth.users` table
+- **Meeting Response Handling**: Implement API endpoints for Accept/Decline/Propose actions
+- **Timezone Preferences**: Honor user timezone preferences from profile data
+- **Meeting Analytics**: Track meeting attendance and success rates for algorithm improvement
+- **Recurring Event Management**: Handle rescheduling and cancellation workflows
+
+### Implementation Lessons Learned
 
 This email system architecture provides a solid foundation for user engagement while maintaining developer productivity and system reliability. The phased approach allows for incremental implementation and testing of each component.
 

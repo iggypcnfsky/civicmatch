@@ -12,7 +12,17 @@ import {
 import { EmailLayout, baseUrl } from './shared/Layout';
 import { EmailHeader } from './shared/Header';
 import { EmailFooter } from './shared/Footer';
-import { MailIcon, UserIcon, SearchIcon, WrenchIcon, HeartIcon, LightbulbIcon, SparklesIcon } from './shared/Icons';
+import { 
+  MailIcon, 
+  UserIcon, 
+  SearchIcon, 
+  WrenchIcon, 
+  HeartIcon, 
+  LightbulbIcon, 
+  SparklesIcon, 
+  VideoIcon, 
+  ClockIcon 
+} from './shared/Icons';
 
 interface MatchedProfile {
   userId: string;
@@ -22,14 +32,14 @@ interface MatchedProfile {
   location?: {
     city: string;
     country: string;
-  };
+  } | string;
   tags?: string[];
   skills?: string[];
   causes?: string[];
   values?: string[];
 
   fame?: string; // What I'm Known For
-  aim?: Array<{ title: string; summary: string }>; // What I'm Focused On
+  aim?: Array<{ title: string; summary?: string }>; // What I'm Focused On
   game?: string; // Long-term Strategy
   portfolio?: string[];
   workStyle?: string;
@@ -37,8 +47,8 @@ interface MatchedProfile {
   avatarUrl?: string;
   matchScore: number;
   matchReasons?: string[];
-  profileUrl: string;
-  connectUrl: string;
+  profileUrl?: string; // Optional - now handled directly in template
+  connectUrl?: string; // Optional - now handled directly in template
 }
 
 interface WeeklyMatchEmailProps {
@@ -47,6 +57,20 @@ interface WeeklyMatchEmailProps {
     avatarUrl?: string;
   };
   match?: MatchedProfile;
+  meetingDetails?: {
+    eventId: string;
+    googleMeetUrl: string;
+    scheduledTime: Date;
+    timezone: string;
+    calendarEventUrl: string;
+    icsDownloadUrl: string;
+  };
+  meetingActions?: {
+    acceptUrl: string;
+    declineUrl: string;
+    proposeTimeUrl: string;
+    addToCalendarUrl: string;
+  };
   exploreMoreUrl?: string;
   unsubscribeUrl?: string;
   preferencesUrl?: string;
@@ -59,9 +83,20 @@ const formatMatchScore = (score: number): string => {
   return 'Potential match';
 };
 
-const formatLocation = (location?: { city: string; country: string }): string => {
+const formatLocation = (location?: { city: string; country: string } | string): string => {
   if (!location) return 'Location not specified';
-  return `${location.city}, ${location.country}`;
+  
+  // Handle string location format
+  if (typeof location === 'string') {
+    return location;
+  }
+  
+  // Handle object location format
+  if (typeof location === 'object' && location.city && location.country) {
+    return `${location.city}, ${location.country}`;
+  }
+  
+  return 'Location not specified';
 };
 
 const normalizeUrl = (url: string): string => {
@@ -87,9 +122,34 @@ const renderWithLinks = (text: string | undefined) => {
   });
 };
 
+const formatMeetingTime = (date: Date, timezone: string): string => {
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+    timeZone: timezone,
+  };
+  return date.toLocaleDateString('en-US', options);
+};
+
+const getMeetingDayDate = (): Date => {
+  const now = new Date();
+  const currentDay = now.getDay(); // 0 = Sunday, 5 = Friday
+  const daysUntilFriday = (5 - currentDay + 7) % 7 || 7; // Next Friday
+  const nextFriday = new Date(now);
+  nextFriday.setDate(now.getDate() + daysUntilFriday);
+  nextFriday.setHours(17, 0, 0, 0); // 5 PM
+  return nextFriday;
+};
+
 export const WeeklyMatchEmail = ({
   currentUser = { displayName: 'User', avatarUrl: undefined },
   match,
+  meetingDetails,
   exploreMoreUrl = `${baseUrl}/`,
   unsubscribeUrl,
   preferencesUrl = `${baseUrl}/profile#email-preferences`,
@@ -112,7 +172,7 @@ export const WeeklyMatchEmail = ({
       
       <Container className="bg-background px-48 py-32 rounded-lg shadow-sm">
         <Heading className="my-0 text-center text-28 leading-tight text-text">
-          Meet Your Weekly Match! 🎯
+          Meet Your Weekly Match!
         </Heading>
 
         <Section className="mt-32">
@@ -135,7 +195,13 @@ export const WeeklyMatchEmail = ({
                 alt={currentUser.displayName}
                 width="80"
                 height="80"
-                className="rounded-full mx-auto border-4 border-primary"
+                style={{
+                  objectFit: 'cover',
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%'
+                }}
+                className="mx-auto border-4 border-primary"
               />
               <Text className="text-14 font-semibold text-text mt-8 m-0">
                 {currentUser.displayName}
@@ -143,7 +209,7 @@ export const WeeklyMatchEmail = ({
               <Text className="text-12 text-text-muted m-0">You</Text>
             </Column>
             <Column className="w-1/3 text-center">
-              <div className="text-32">🤝</div>
+              <div className="text-64">+</div>
             </Column>
             <Column className="w-1/3 text-center">
               <Img
@@ -151,7 +217,13 @@ export const WeeklyMatchEmail = ({
                 alt={match.displayName}
                 width="80"
                 height="80"
-                className="rounded-full mx-auto border-4 border-primary"
+                style={{
+                  objectFit: 'cover',
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%'
+                }}
+                className="mx-auto border-4 border-primary"
               />
               <Text className="text-14 font-semibold text-text mt-8 m-0">
                 {match.displayName}
@@ -293,18 +365,60 @@ export const WeeklyMatchEmail = ({
           </Section>
         )}
 
+        {/* Google Meet Integration Section */}
+        {meetingDetails && (
+          <Section className="mt-40">
+            <div className="p-24 bg-primary rounded-lg text-center">
+              <Text className="font-semibold text-20 text-background m-0 mb-16">
+                🗓️ Let&apos;s Meet This Friday!
+              </Text>
+              <Text className="text-16 text-background m-0 mb-20">
+                We&apos;ve scheduled a 30-minute virtual meeting for you both to connect and explore potential collaboration opportunities.
+              </Text>
+              
+              {/* Meeting Details */}
+              <div className="bg-background rounded-lg p-20 mb-20">
+                <div className="mb-16">
+                  <ClockIcon size={20} className="text-primary" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />
+                  <Text className="font-semibold text-16 text-text m-0" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                    {formatMeetingTime(meetingDetails.scheduledTime, meetingDetails.timezone)}
+                  </Text>
+                </div>
+                <div className="mb-16">
+                  <VideoIcon size={20} className="text-primary" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />
+                  <Link href={meetingDetails.googleMeetUrl} className="text-primary underline text-14" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                    Join Google Meet
+                  </Link>
+                </div>
+                <Text className="text-12 text-text-muted m-0">
+                  Meeting ID: {meetingDetails.eventId.substring(0, 12)}...
+                </Text>
+              </div>
+
+
+              
+              {/* Meeting Coordination Message */}
+              {meetingDetails && (
+                <Text className="text-12 text-background m-0 mt-16 text-center">
+                  💬 Please confirm with {match?.displayName || 'your match'} that you can both attend by responding to the calendar invite or messaging them directly.
+                </Text>
+              )}
+            </div>
+          </Section>
+        )}
+
         {/* CTA Buttons */}
         <Section className="text-center mt-32">
           <Button 
-            href={match.connectUrl}
+            href="https://www.civicmatch.app/messages"
             className="rounded-full bg-primary px-32 py-16 text-background font-semibold text-16 no-underline mr-16"
           >
             <MailIcon size={16} className="mr-8" />
             Send Message
           </Button>
           <Button 
-            href={match.profileUrl}
-            className="rounded-full border border-border bg-background px-32 py-16 text-text font-semibold text-16 no-underline"
+            href={`https://www.civicmatch.app/profiles/${match.userId}`}
+            className="rounded-full border border-border bg-muted px-32 py-16 text-text font-semibold text-16 no-underline"
           >
             <UserIcon size={16} className="mr-8" />
             View Profile
@@ -318,7 +432,7 @@ export const WeeklyMatchEmail = ({
           </Text>
           <Button 
             href={exploreMoreUrl}
-            className="rounded-full bg-primary px-32 py-12 text-background font-semibold text-16 no-underline"
+            className="rounded-full bg-muted border border-border px-32 py-12 text-text font-semibold text-16 no-underline"
           >
             <SearchIcon size={16} className="mr-8" />
             Discover More Changemakers
@@ -341,12 +455,24 @@ export const WeeklyMatchEmail = ({
           </Text>
         </Section>
 
-        <Section className="mt-32">
+        <Section className="mt-32 text-center">
           <Text className="text-14 text-text-muted">
             Happy connecting!
             <br />
             Iggy, CivicMatch
           </Text>
+          <div className="mt-12">
+            <Img
+              src={`${baseUrl}/email-logo.png`}
+              alt="CivicMatch"
+              width="32"
+              height="32"
+              className="mx-auto"
+              style={{
+                borderRadius: '100%'
+              }}
+            />
+          </div>
         </Section>
       </Container>
 
@@ -391,8 +517,21 @@ WeeklyMatchEmail.PreviewProps = {
       'Both seeking technical co-founders for scaling projects',
       'Similar community-first approach to problem solving'
     ],
-    profileUrl: `${baseUrl}/profiles/carlos.rodriguez`,
-    connectUrl: `${baseUrl}/connect/carlos.rodriguez`,
+    // URLs now handled directly in template
+  },
+  meetingDetails: {
+    eventId: 'cal_event_12345678901234567890',
+    googleMeetUrl: 'https://meet.google.com/abc-defg-hij',
+    scheduledTime: getMeetingDayDate(),
+    timezone: 'America/New_York',
+    calendarEventUrl: 'https://calendar.google.com/calendar/event?eid=xyz123',
+    icsDownloadUrl: `${baseUrl}/api/calendar/download/cal_event_12345678901234567890.ics`,
+  },
+  meetingActions: {
+    acceptUrl: `${baseUrl}/api/meeting/accept?eventId=cal_event_12345678901234567890&token=abc123`,
+    declineUrl: `${baseUrl}/api/meeting/decline?eventId=cal_event_12345678901234567890&token=abc123`,
+    proposeTimeUrl: `${baseUrl}/api/meeting/propose?eventId=cal_event_12345678901234567890&token=abc123`,
+    addToCalendarUrl: `${baseUrl}/api/calendar/download/cal_event_12345678901234567890.ics`,
   },
   exploreMoreUrl: `${baseUrl}/`,
   preferencesUrl: `${baseUrl}/profile#email-preferences`,

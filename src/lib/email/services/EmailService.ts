@@ -43,37 +43,49 @@ export interface ProfileReminderEmailData {
 }
 
 export interface WeeklyMatchEmailData {
-  currentUser: {
+  currentUser?: {
     displayName: string;
-    username: string;
     avatarUrl?: string;
-    bio?: string;
-    skills?: string[];
-    causes?: string[];
-    values?: string[];
   };
-  matchedUser: {
+  match?: {
+    userId: string;
     displayName: string;
     username: string;
-    avatarUrl?: string;
-    bio?: string;
+    bio: string;
+    location?: {
+      city: string;
+      country: string;
+    } | string;
+    tags?: string[];
     skills?: string[];
     causes?: string[];
     values?: string[];
     fame?: string;
-    aim?: Array<{ title: string; summary: string }>;
+    aim?: Array<{ title: string; summary?: string }>;
     game?: string;
     workStyle?: string;
     helpNeeded?: string;
+    avatarUrl?: string;
+    matchScore: number;
+    matchReasons?: string[];
+    profileUrl?: string; // Optional - now handled directly in template
+    connectUrl?: string; // Optional - now handled directly in template
   };
-  matchReason: {
-    sharedValues: string[];
-    sharedSkills: string[];
-    sharedCauses: string[];
-    explanation: string;
+  meetingDetails?: {
+    eventId: string;
+    googleMeetUrl: string;
+    scheduledTime: Date;
+    timezone: string;
+    calendarEventUrl: string;
+    icsDownloadUrl: string;
   };
-  profileUrl: string;
-  messageUrl: string;
+  meetingActions?: {
+    acceptUrl: string;
+    declineUrl: string;
+    proposeTimeUrl: string;
+    addToCalendarUrl: string;
+  };
+  exploreMoreUrl?: string;
   unsubscribeUrl?: string;
   preferencesUrl?: string;
 }
@@ -140,18 +152,23 @@ export class EmailService {
   }
 
   /**
-   * Send weekly matching email
+   * Send weekly matching email with Google Meet integration
    */
   async sendWeeklyMatchEmail(
     to: string,
     data: WeeklyMatchEmailData,
     options: Omit<SendEmailOptions, 'to' | 'subject'> = {}
   ) {
-    const matchName = data.matchedUser.displayName;
+    const matchName = data.match?.displayName || 'a potential collaborator';
+    const hasMeeting = data.meetingDetails?.googleMeetUrl;
+    const subject = hasMeeting 
+      ? `Meet ${matchName} this Friday - Calendar invite included!`
+      : `You might want to connect with ${matchName}`;
+      
     return this.sendTemplatedEmail({
       ...options,
       to,
-      subject: `You might want to connect with ${matchName}`,
+      subject,
       emailType: 'weekly_match',
       templateData: data,
       renderTemplate: async () => render(WeeklyMatchEmail(data)),

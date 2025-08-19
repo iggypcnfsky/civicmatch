@@ -1,0 +1,303 @@
+
+> civicmatch@0.1.0 dev
+> next dev --turbopack
+
+ ⚠ Port 3000 is in use by process 96366, using available port 3001 instead.
+   ▲ Next.js 15.4.6 (Turbopack)
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.1.30:3001
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1453ms
+ ○ Compiling /_not-found/page ...
+ ✓ Compiled /_not-found/page in 1989ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqr5wd2m 404 in 2339ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr5yif8 404 in 2338ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr657rw 404 in 2339ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr5vs0b 404 in 2339ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr5w52z 404 in 2353ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr5waog 404 in 2342ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqr68frt 404 in 140ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr6kice 404 in 139ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr63d8s 404 in 141ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr64e2n 404 in 143ms
+ GET /socket.io?EIO=4&transport=polling&t=hqr6kwfr 404 in 142ms
+ GET /socket.io?EIO=4&transport=polling&t=hqsp76zc 404 in 139ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqspq4fm 404 in 83ms
+ GET /socket.io?EIO=4&transport=polling&t=hqspt7hk 404 in 82ms
+ GET /socket.io?EIO=4&transport=polling&t=hqsptaly 404 in 82ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqu8nzzy 404 in 37ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqxbx65v 404 in 207ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbxui7 404 in 208ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbw79o 404 in 214ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbw4eb 404 in 213ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbwf5n 404 in 213ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbv7c9 404 in 215ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqxbxoeq 404 in 86ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqxc44ir 404 in 175ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbxper 404 in 178ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxbzf6r 404 in 177ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxc5bgj 404 in 176ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxc5kxu 404 in 180ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqxc5j74 404 in 137ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqxc6mkl 404 in 183ms
+ GET /socket.io?EIO=4&transport=polling&t=hqxc6nms 404 in 186ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hqyvjyzd 404 in 35ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr1y7wyh 404 in 167ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1y45e6 404 in 168ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1yhik3 404 in 158ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1ygoyd 404 in 163ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1y7gw1 404 in 168ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1ygdt3 404 in 158ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr1y9su0 404 in 196ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1y9ayo 404 in 195ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1yhr2k 404 in 197ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1y7bol 404 in 197ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1ydqwa 404 in 195ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1yh7nf 404 in 195ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr1yd1lf 404 in 67ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1ydmxn 404 in 67ms
+ GET /socket.io?EIO=4&transport=polling&t=hr1y9r34 404 in 67ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr3i4lxd 404 in 45ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr6l7rx5 404 in 158ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6l9k1i 404 in 158ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6l52yf 404 in 159ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6l5ysm 404 in 160ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6kw8of 404 in 159ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6l4lj5 404 in 158ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr6l9s51 404 in 145ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6lg73f 404 in 144ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6leh1u 404 in 145ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6lac2j 404 in 147ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6laahl 404 in 148ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6l6gly 404 in 146ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr6linz4 404 in 71ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6lijiq 404 in 72ms
+ GET /socket.io?EIO=4&transport=polling&t=hr6likah 404 in 71ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hr84ille 404 in 33ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrb7ibbm 404 in 133ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7jeae 404 in 134ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7hxf7 404 in 138ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7kzqy 404 in 134ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7l1el 404 in 133ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7l67k 404 in 132ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrb7k2ur 404 in 132ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7hfp4 404 in 135ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb83oap 404 in 133ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7io1h 404 in 134ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7jroj 404 in 134ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb7mkci 404 in 136ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrb855pb 404 in 67ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb864um 404 in 67ms
+ GET /socket.io?EIO=4&transport=polling&t=hrb86flx 404 in 68ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrcr7834 404 in 36ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrfu5s3e 404 in 120ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuh1zx 404 in 120ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuh7jz 404 in 122ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfugq63 404 in 119ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuftei 404 in 123ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfug8ko 404 in 123ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrfupkwe 404 in 120ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuhj4l 404 in 124ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfup06f 404 in 119ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfui2l2 404 in 121ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfupo9x 404 in 119ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuismr 404 in 122ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrfup74l 404 in 57ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuiz09 404 in 58ms
+ GET /socket.io?EIO=4&transport=polling&t=hrfuiufd 404 in 58ms
+ ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+ GET /socket.io?EIO=4&transport=polling&t=hrhdubfq 404 in 29ms
+[?25h
