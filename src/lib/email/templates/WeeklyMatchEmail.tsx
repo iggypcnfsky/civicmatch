@@ -411,7 +411,7 @@ export const WeeklyMatchEmail = ({
         {/* CTA Buttons */}
         <Section className="text-center mt-32">
           <Button 
-            href={`https://www.civicmatch.app/api/messages/start?currentUserId=${currentUser.userId}&targetUserId=${match.userId}`}
+            href={`https://www.civicmatch.app/messages/start?currentUserId=${currentUser.userId}&targetUserId=${match.userId}`}
             className="rounded-full bg-primary px-32 py-16 text-background font-semibold text-16 no-underline mr-16"
           >
             <MailIcon size={16} className="mr-8" />

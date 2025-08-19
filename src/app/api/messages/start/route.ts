@@ -110,10 +110,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Redirect to the conversation page
-    const redirectUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://civicmatch.app'}/messages/${conversationId}`;
+    // Return JSON with conversation ID for client-side redirect
+    const redirectUrl = `/messages/${conversationId}`;
     
-    return NextResponse.redirect(redirectUrl);
+    return NextResponse.json({ 
+      success: true, 
+      conversationId, 
+      redirectUrl 
+    });
 
   } catch (error) {
     console.error('Unexpected error in start conversation:', error);
