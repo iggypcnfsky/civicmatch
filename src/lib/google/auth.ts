@@ -32,33 +32,39 @@ export class GoogleAuth {
           
           // Try different approaches if the first one fails
           try {
+            // For domain-wide delegation, use subject to impersonate the calendar owner
+            const subject = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || credentials.client_email;
+            console.log('Using subject for domain-wide delegation:', subject);
+            
             GoogleAuth.instance = new JWT({
               email: credentials.client_email,
               key: credentials.private_key,
+              subject: subject, // This enables domain-wide delegation
               scopes: [
                 'https://www.googleapis.com/auth/calendar.events',
                 'https://www.googleapis.com/auth/calendar'
               ]
             });
-            console.log('JWT instance created successfully from JSON (method 1)');
+            console.log('JWT instance created successfully from JSON (method 1) with domain-wide delegation');
           } catch (jwtError) {
             console.error('JWT creation failed with method 1:', jwtError);
             
             // Try alternative approach: use the entire credentials object
             console.log('Trying alternative JWT creation method...');
             try {
+              const subject = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || credentials.client_email;
               GoogleAuth.instance = new JWT({
                 keyFile: undefined, // Don't use keyFile
                 key: credentials.private_key,
                 email: credentials.client_email,
-                subject: undefined,
+                subject: subject, // Domain-wide delegation
                 additionalClaims: undefined,
                 scopes: [
                   'https://www.googleapis.com/auth/calendar.events',
                   'https://www.googleapis.com/auth/calendar'
                 ]
               });
-              console.log('JWT instance created successfully from JSON (method 2)');
+              console.log('JWT instance created successfully from JSON (method 2) with domain-wide delegation');
             } catch (jwtError2) {
               console.error('JWT creation failed with method 2:', jwtError2);
               
@@ -146,15 +152,19 @@ export class GoogleAuth {
         console.log('Private key ends with:', processedKey.substring(processedKey.length - 50));
 
         try {
+          const subject = process.env.GOOGLE_CALENDAR_OWNER_EMAIL || email;
+          console.log('Using subject for domain-wide delegation (separate key method):', subject);
+          
           GoogleAuth.instance = new JWT({
             email,
             key: processedKey,
+            subject: subject, // Domain-wide delegation
             scopes: [
               'https://www.googleapis.com/auth/calendar.events',
               'https://www.googleapis.com/auth/calendar'
             ]
           });
-          console.log('JWT instance created successfully');
+          console.log('JWT instance created successfully with domain-wide delegation');
         } catch (jwtError) {
           console.error('Error creating JWT instance:', jwtError);
           throw jwtError;
@@ -182,13 +192,17 @@ export class GoogleAuth {
    */
   static validateConfig(): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
+    const warnings: string[] = [];
 
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
-      errors.push('GOOGLE_SERVICE_ACCOUNT_EMAIL is required');
-    }
+    // Check if we have JSON credentials OR separate email/key
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+        errors.push('GOOGLE_SERVICE_ACCOUNT_EMAIL is required (when not using GOOGLE_SERVICE_ACCOUNT_JSON)');
+      }
 
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
-      errors.push('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is required');
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+        errors.push('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is required (when not using GOOGLE_SERVICE_ACCOUNT_JSON)');
+      }
     }
 
     if (!process.env.GOOGLE_CALENDAR_ID) {
@@ -197,6 +211,15 @@ export class GoogleAuth {
 
     if (!process.env.GOOGLE_PROJECT_ID) {
       errors.push('GOOGLE_PROJECT_ID is required');
+    }
+
+    // For domain-wide delegation, this is recommended
+    if (!process.env.GOOGLE_CALENDAR_OWNER_EMAIL) {
+      warnings.push('GOOGLE_CALENDAR_OWNER_EMAIL is recommended for domain-wide delegation');
+    }
+
+    if (warnings.length > 0) {
+      console.warn('Google configuration warnings:', warnings);
     }
 
     return {
