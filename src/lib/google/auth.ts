@@ -15,6 +15,10 @@ export class GoogleAuth {
       // Try JSON credentials first, then fall back to separate key/email
       const jsonCredentials = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
       
+      // For debugging: check if we have both formats
+      console.log('Has JSON credentials:', !!jsonCredentials);
+      console.log('Has separate email/key:', !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && !!process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
+      
       if (jsonCredentials) {
         try {
           const credentials = JSON.parse(jsonCredentials);
@@ -65,15 +69,23 @@ export class GoogleAuth {
         }
         
         console.log('Private key format validated - starts with:', processedKey.substring(0, 50) + '...');
+        console.log('Private key length:', processedKey.length);
+        console.log('Private key ends with:', processedKey.substring(processedKey.length - 50));
 
-        GoogleAuth.instance = new JWT({
-          email,
-          key: processedKey,
-          scopes: [
-            'https://www.googleapis.com/auth/calendar.events',
-            'https://www.googleapis.com/auth/calendar'
-          ]
-        });
+        try {
+          GoogleAuth.instance = new JWT({
+            email,
+            key: processedKey,
+            scopes: [
+              'https://www.googleapis.com/auth/calendar.events',
+              'https://www.googleapis.com/auth/calendar'
+            ]
+          });
+          console.log('JWT instance created successfully');
+        } catch (jwtError) {
+          console.error('Error creating JWT instance:', jwtError);
+          throw jwtError;
+        }
         console.log('Using separate email/key credentials for authentication');
       }
 
