@@ -329,7 +329,7 @@ Automation (using MCP Supabase tools):
 
 ### Current implementation (status)
 - **Environment**: `.env` contains `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (not committed).
-- **Client**: browser client in `src/lib/supabase/client.ts` configured with stable auth options (`persistSession`, `autoRefreshToken`, `detectSessionInUrl`) and a dedicated `storageKey` (`civicmatch.supabase.auth`). A global `AuthProvider` wraps the app and derives auth from `getSession()` and `onAuthStateChange`, exposing `useAuth()`.
+- **Client**: browser client in `src/lib/supabase/client.ts` configured with stable auth options (`persistSession`, `autoRefreshToken`, `detectSessionInUrl`) and a dedicated `storageKey` (`your_app.supabase.auth`). A global `AuthProvider` wraps the app and derives auth from `getSession()` and `onAuthStateChange`, exposing `useAuth()`.
 - **Types**: generated at `src/types/supabase.ts` and refreshed after migrations.
 - **Migrations**: `supabase/migrations/0001_init.sql` applied (profiles, connections, conversations, messages, saved_searches + RLS + triggers).
 - **Auth wiring**: Explore page (`/`) login/register form uses Supabase Auth (email/password). After auth, an `ensureProfile` step upserts into `public.profiles` with `user_id`, `username = email`, and a starter `data` payload.
@@ -627,7 +627,7 @@ VALUES (user1, user2, 'pending', '{"source": "weekly_match_email"}');
 ```
 
 **User Experience**:
-- **Email**: Click "Send Message" → `https://civicmatch.app/messages/start?currentUserId=X&targetUserId=Y`
+- **Email**: Click "Send Message" → `/messages/start?currentUserId=X&targetUserId=Y`
 - **Bridge Page**: Shows loading spinner while calling internal API
 - **API**: Smart conversation detection (create/reuse) → Returns JSON with conversation ID
 - **Client**: JavaScript redirect to `/messages/[conversation-id]`
@@ -823,15 +823,15 @@ Civic Match uses Resend as the primary email service provider combined with Reac
 - **Template**: `WelcomeEmail.tsx`
 - **Content**: 
   - Personalized welcome message "Welcome [FirstName]!" (extracts first name from displayName)
-  - CivicMatch logo (email-logo.png from https://civicmatch.app domain)
+  - App logo (email-logo.png from your domain)
   - Numbered step guide with table-based layout for email client compatibility:
     1. Complete your profile → `/profile`
     2. Start exploring → `/` (main explore page)
     3. Connect and collaborate (simplified messaging info)
     4. Stay engaged (newsletter signup info)
   - Light gray "Explore Profiles" CTA button
-  - Email signature with logo from "Iggy, CivicMatch"
-  - All URLs point to production domain (https://civicmatch.app)
+  - Email signature with logo from your team
+  - All URLs point to production domain
 - **Implementation**: 
   - API route `/api/email/welcome` triggered after successful signup
   - Email/password: Called directly from `handleSignup()` function
@@ -857,7 +857,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - Top 3 missing fields with importance explanations
   - Benefits showcase (Better Matches, More Connections, Project Opportunities)
   - Direct CTA to complete profile with edit icon
-  - Encouragement message and signature from "Iggy, CivicMatch"
+  - Encouragement message and signature from your team
 - **Implementation**: 
   - **Cron Schedule**: Tuesday 12:12 PM UTC (`12 12 * * 2`)
   - **Targeting Logic**: Profiles 0-90% complete, email preferences enabled, no reminder in last 7 days
@@ -881,12 +881,12 @@ Civic Match uses Resend as the primary email service provider combined with Reac
   - **Google Meet Integration**: Automatic 30-minute Friday 5 PM CET meetings with calendar invites
   - **Meeting coordination**: Message prompting users to confirm via calendar or direct message
   - **Clear CTAs**: "Send Message" → `/messages/start?currentUserId=X&targetUserId=Y` (bridge page creates/finds conversation), "View Profile" → `/profiles/[userId]`, "Add to Calendar"
-  - **Professional branding**: Centered signature with CivicMatch logo, production domain links
+     - **Professional branding**: Centered signature with your logo, production domain links
 - **Implementation**: 
   - **Cron Schedule**: `0 10 * * 3` (Wednesday 10 AM UTC) via Vercel Cron
   - **Matching Algorithm**: Random matching (MVP) with 70-100 match scores, future AI/LLM planned
   - **Dual Email Sending**: Both users receive emails about each other
-  - **Google Calendar API**: Creates events titled "FirstName + FirstName / CivicMatch" with Meet links
+  - **Google Calendar API**: Creates events titled "FirstName + FirstName / Your App" with Meet links
   - **Service Account Auth**: Domain-wide delegation for calendar creation permissions
   - **Timezone Handling**: CET to local timezone conversion with 30-minute duration
   - **Database Tracking**: `email_logs` with `calendar_event_id` and `google_meet_url` columns
@@ -1041,7 +1041,7 @@ Add to `.env.local`:
 ```bash
 # Resend Configuration
 RESEND_API_KEY=re_xxxxxxxxxxxx
-RESEND_FROM_EMAIL=noreply@civicmatch.app
+RESEND_FROM_EMAIL=noreply@yourdomain.com
 RESEND_WEBHOOK_SECRET=whsec_xxxxxxxxxxxx
 
 # Email Settings
@@ -1128,7 +1128,7 @@ EMAIL_TEST_MODE=false # Set to true in development
 
 ### Email Template Design Principles
 
-1. **Consistent branding**: Shared layout with CivicMatch colors and typography
+1. **Consistent branding**: Shared layout with your app colors and typography
 2. **Mobile-first**: Responsive design for various email clients  
 3. **Accessibility**: High contrast, clear hierarchy, alt text for images
 4. **Personalization**: Dynamic content based on user profile and activity
@@ -1212,7 +1212,7 @@ EMAIL_TEST_MODE=false # Set to true in development
    - **EmailService**: Complete service class with logging, error handling, and template rendering
    - **Welcome API Route**: `/api/email/welcome` handles server-side email sending with user validation
    - **Auth Integration**: Automatic email sending on signup (both email/password and Google OAuth)
-   - **Production URLs**: All email links and assets use `https://civicmatch.app` domain
+   - **Production URLs**: All email links and assets use production domain
    - **Email Logging**: Supabase RLS disabled on `email_logs` table to allow server-side logging
 
 2. **Email Template Fixes Applied**:
@@ -1221,10 +1221,10 @@ EMAIL_TEST_MODE=false # Set to true in development
    - **Number Alignment**: Table-based layout with centered numbers using `margin: 0 auto`
    - **Clean Layout**: Removed "Learn about messaging" and "View community guidelines" text
    - **CTA Styling**: Light gray background on "Explore Profiles" button
-   - **Signature Logo**: Added CivicMatch logo below signature
+   - **Signature Logo**: Added app logo below signature
 
 3. **Cross-Origin Issues Resolved**:
-   - **Base URL Strategy**: All email templates use production domain (`https://civicmatch.app`)
+   - **Base URL Strategy**: All email templates use production domain
    - **Asset Loading**: Email images load from live domain to avoid `net::ERR_BLOCKED_BY_RESPONSE`
    - **Link Targeting**: Profile and explore links direct users to production app
 
@@ -1323,7 +1323,7 @@ EMAIL_TEST_MODE=false # Set to true in development
    - **Domain-Wide Delegation**: Essential for service account calendar creation with attendees
    - **Permission Setup**: "Make changes to events" permission required on shared calendar
    - **Authentication Method**: JWT-based service account auth with user impersonation
-   - **Calendar Organization**: Dedicated CivicMatch calendar with proper organizer settings
+   - **Calendar Organization**: Dedicated app calendar with proper organizer settings
 
 3. **Email Template Design Improvements**:
    - **Image Styling**: Fixed stretched profile pictures with `objectFit: 'cover'` and proper dimensions
@@ -1354,7 +1354,7 @@ EMAIL_TEST_MODE=false # Set to true in development
    - **Meeting Coordination**: Added message encouraging users to confirm via calendar or direct message
    - **Profile Accessibility**: Direct links to view full profiles from emails
    - **Calendar Integration**: Proper ICS file generation for cross-platform calendar support
-   - **Visual Consistency**: Maintained CivicMatch branding throughout email and calendar events
+   - **Visual Consistency**: Maintained app branding throughout email and calendar events
 
 **Architecture Decision Validation**: The integrated approach of combining matching, calendar creation, and email sending in a single cron job proved effective for:
 - **Simplicity**: Single entry point for weekly matching workflow
@@ -1379,7 +1379,7 @@ Civic Match integrates Google Meet and Calendar APIs to automate the scheduling 
 #### Authentication Strategy
 - **Service Account**: Use Google Service Account for server-side API authentication
 - **No User OAuth**: Eliminates need for individual user Google authentication
-- **Dedicated Calendar**: Service account manages a dedicated "CivicMatch Meetings" calendar
+- **Dedicated Calendar**: Service account manages a dedicated "App Meetings" calendar
 - **Security**: Service account credentials stored securely in environment variables
 
 #### API Integration Approach
@@ -1489,29 +1489,29 @@ src/
 
 **Implementation Status**: All files created and integrated with production cron scheduling
 
-#### Environment Configuration ✅ PRODUCTION
+#### Environment Configuration
 ```bash
-# Google Service Account Configuration (Production Values)
-GOOGLE_SERVICE_ACCOUNT_EMAIL=matching@civicmatch.iam.gserviceaccount.com
-GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n[ACTUAL_PRIVATE_KEY]\n-----END PRIVATE KEY-----"
-GOOGLE_CALENDAR_ID=hidden
-GOOGLE_PROJECT_ID=civicmatch
-GOOGLE_CALENDAR_OWNER_EMAIL=hey@iggy.love # For domain-wide delegation
+# Google Service Account Configuration
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your_service_account@your_project.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n[YOUR_PRIVATE_KEY]\n-----END PRIVATE KEY-----"
+GOOGLE_CALENDAR_ID=your_calendar_id
+GOOGLE_PROJECT_ID=your_project_id
+GOOGLE_CALENDAR_OWNER_EMAIL=owner@yourdomain.com # For domain-wide delegation
 
-# Meeting Configuration (Current Settings)
+# Meeting Configuration
 MEETING_DEFAULT_DURATION=30 # Changed from 60 to 30 minutes
 MEETING_TIME_CET=17:00 # Friday 5 PM CET
 MEETING_DAY=5 # Friday (0=Sunday, 6=Saturday)
 
 # Site Configuration
-NEXT_PUBLIC_SITE_URL=https://civicmatch.app
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
 
 # Cron Security
-CRON_SECRET=[PRODUCTION_SECRET] # Vercel cron authentication
+CRON_SECRET=your_cron_secret # Vercel cron authentication
 
 # Email & Database (Existing)
-RESEND_API_KEY=[PRODUCTION_KEY]
-SUPABASE_SERVICE_ROLE_KEY=[SERVICE_ROLE_KEY] # For auth.admin functions
+RESEND_API_KEY=your_resend_api_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key # For auth.admin functions
 ```
 
 **Setup Requirements**:
@@ -1528,7 +1528,7 @@ export async function createWeeklyMatchMeeting(
   matchedUser: MatchedProfile
 ): Promise<GoogleCalendarEvent | null> {
   // Creates 30-minute Friday 5 PM CET meetings
-  // Event title: "Maya + Carlos / CivicMatch"
+  // Event title: "Maya + Carlos / Your App"
   // Includes Google Meet via conferenceData
   // Sends calendar invites to both participants
 }
@@ -1593,10 +1593,10 @@ interface MeetingDetails {
 - **Meeting Section**: Friday 5 PM CET meeting with Google Meet link and timezone conversion
 - **Simplified Actions**: Only "Add to Calendar" button (removed Accept/Decline/Propose buttons)
 - **Navigation Links**: 
-  - "Send Message" → `https://civicmatch.app/messages`
-  - "View Profile" → `https://civicmatch.app/profiles/[userId]`
+  - "Send Message" → `/messages`
+  - "View Profile" → `/profiles/[userId]`
 - **Coordination Message**: Prompts users to confirm attendance via calendar or direct message
-- **Professional Branding**: Centered signature with CivicMatch logo, proper footer centering
+- **Professional Branding**: Centered signature with your logo, proper footer centering
 - **Location Handling**: Supports both string and object formats for user locations
 - **Conditional Rendering**: Only shows profile sections that contain data
 
@@ -1644,13 +1644,13 @@ interface MeetingDetails {
 
 This integration provides a seamless experience for users to connect through structured weekly meetings while maintaining the simplicity and effectiveness of the existing email system.
 
-### Google Calendar Integration Implementation (Augu 2025) ✅ COMPLETED
+### Google Calendar Integration Implementation (August 2025) ✅ COMPLETED
 
 #### Production Implementation Complete
 The complete Google Calendar + Google Meet integration has been successfully implemented for the weekly matching system:
 
 1. **Core Services Created**:
-   - **GoogleCalendarService** (`src/lib/google/calendar.ts`): Creates calendar events with Google Meet integration, generates event titles in format `"FirstName + FirstName / CivicMatch"`, manages event lifecycle (create, update, delete, get), generates ICS files for calendar downloads
+   - **GoogleCalendarService** (`src/lib/google/calendar.ts`): Creates calendar events with Google Meet integration, generates event titles in format `"FirstName + FirstName / Your App"`, manages event lifecycle (create, update, delete, get), generates ICS files for calendar downloads
    - **GoogleAuth** (`src/lib/google/auth.ts`): Service account authentication, configuration validation, authentication testing utilities
    - **Enhanced MatchingService** (`src/lib/email/services/MatchingService.ts`): Integrated calendar event creation with matches, `generateMatchesWithMeetings()` method for full integration, automatic meeting scheduling for Friday 5 PM CET
 
@@ -1668,10 +1668,10 @@ The complete Google Calendar + Google Meet integration has been successfully imp
    - Ready for tracking calendar integration analytics
 
 #### Event Naming Format
-Calendar events are automatically named using the format: `"Maya + Carlos / CivicMatch"`
+Calendar events are automatically named using the format: `"Maya + Carlos / Your App"`
 - **Maya** = First name extracted from user 1's display name
 - **Carlos** = First name extracted from user 2's display name  
-- **CivicMatch** = Platform identifier for branding
+- **Your App** = Platform identifier for branding
 
 #### Meeting Configuration
 - **Day**: Every Friday
@@ -1683,19 +1683,19 @@ Calendar events are automatically named using the format: `"Maya + Carlos / Civi
 - **Permissions**: Guests can modify events, cannot invite others, can see other guests
 
 #### Service Account Configuration
-- **Service Account**: `matching@civicmatch.iam.gserviceaccount.com`
-- **Calendar ID**: `c_e728dc0164d60ee22b263467185c7588aa1ae6ca657a0ce3996038141e98af03@group.calendar.google.com`
-- **Project ID**: `civicmatch`
+- **Service Account**: `your_service_account@your_project.iam.gserviceaccount.com`
+- **Calendar ID**: `your_calendar_id@group.calendar.google.com`
+- **Project ID**: `your_project_id`
 - **Scopes**: `calendar.events` and `calendar` for event management
 - **Authentication**: JWT-based service account authentication (no user OAuth required)
 
 #### Environment Variables Required
 ```bash
 # Google Service Account Configuration
-GOOGLE_SERVICE_ACCOUNT_EMAIL=matching@civicmatch.iam.gserviceaccount.com
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your_service_account@your_project.iam.gserviceaccount.com
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n[PRIVATE_KEY_CONTENT]\n-----END PRIVATE KEY-----"
-GOOGLE_CALENDAR_ID=c_e728dc0164d60ee22b263467185c7588aa1ae6ca657a0ce3996038141e98af03@group.calendar.google.com
-GOOGLE_PROJECT_ID=civicmatch
+GOOGLE_CALENDAR_ID=your_calendar_id@group.calendar.google.com
+GOOGLE_PROJECT_ID=your_project_id
 
 # Meeting Configuration
 MEETING_DEFAULT_DURATION=60
@@ -1703,7 +1703,7 @@ MEETING_TIME_CET=17:00
 MEETING_DAY=5
 
 # Site Configuration
-NEXT_PUBLIC_SITE_URL=https://civicmatch.app
+NEXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
 
 #### Integration Flow
@@ -1733,7 +1733,7 @@ NEXT_PUBLIC_SITE_URL=https://civicmatch.app
 
 #### Technical Architecture Decisions
 - **Service Account over OAuth**: Eliminates need for individual user Google authentication
-- **Dedicated Calendar**: Separate calendar for CivicMatch events maintains organization
+- **Dedicated Calendar**: Separate calendar for app events maintains organization
 - **JSONB Event History**: Weekly match history stored in `profiles.data.weeklyMatchHistory` to prevent duplicate matches
 - **ICS File Generation**: Server-side ICS creation for "Add to Calendar" functionality
 - **Email-First Approach**: Calendar integration enhances but doesn't replace email workflow
@@ -1748,6 +1748,128 @@ NEXT_PUBLIC_SITE_URL=https://civicmatch.app
 ### Implementation Lessons Learned
 
 This email system architecture provides a solid foundation for user engagement while maintaining developer productivity and system reliability. The phased approach allows for incremental implementation and testing of each component.
+
+### Google Authentication & Domain-Wide Delegation Lessons Learned (December 2024)
+
+#### OpenSSL Compatibility Issue Resolution ✅ SOLVED
+
+**Problem**: Production Google Calendar integration was failing with `error:1E08010C:DECODER routines::unsupported` in Vercel runtime, while working perfectly in local development.
+
+**Root Cause**: Vercel's Node.js runtime uses a different OpenSSL version that was incompatible with the private key format used by the `google-auth-library` JWT signing process.
+
+**Solution Strategy**: Multiple JWT creation methods with enhanced debugging:
+
+1. **Enhanced Debugging Implementation**:
+   ```typescript
+   // Added comprehensive logging to pinpoint exact failure location
+   console.log('Creating JWT instance from JSON credentials...');
+   console.log('Private key length from JSON:', credentials.private_key?.length);
+   console.log('Private key starts with:', credentials.private_key?.substring(0, 50));
+   ```
+
+2. **Multiple Authentication Methods**: Implemented 4 different JWT creation approaches:
+   - **Method 1**: Standard JWT constructor with JSON credentials ✅ WORKED
+   - **Method 2**: JWT with explicit parameters and undefined values
+   - **Method 3**: JWT constructor with full credentials object
+   - **Method 4**: GoogleAuth class with credentials object
+
+3. **GOOGLE_SERVICE_ACCOUNT_JSON Environment Variable**: Prioritized JSON format over separate email/key variables for better reliability and error handling.
+
+#### Domain-Wide Delegation Configuration ✅ CRITICAL FIX
+
+**Problem**: After resolving OpenSSL issues, calendar creation failed with `You need to have writer access to this calendar` (HTTP 403).
+
+**Root Cause**: Service account was authenticating successfully but not using domain-wide delegation to impersonate the calendar owner.
+
+**Solution**: Added `subject` parameter to JWT configuration for proper domain-wide delegation:
+
+```typescript
+GoogleAuth.instance = new JWT({
+  email: credentials.client_email,
+  key: credentials.private_key,
+  subject: process.env.GOOGLE_CALENDAR_OWNER_EMAIL, // ← CRITICAL FOR DOMAIN-WIDE DELEGATION
+  scopes: [
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/calendar'
+  ]
+});
+```
+
+**Environment Configuration Required**:
+```bash
+GOOGLE_CALENDAR_OWNER_EMAIL=owner@yourdomain.com  # User to impersonate via domain-wide delegation
+GOOGLE_SERVICE_ACCOUNT_JSON={"type": "service_account", ...}  # Full JSON credentials
+```
+
+#### Implementation Architecture Decisions
+
+1. **JSON Credentials Over Separate Variables**: 
+   - **Advantage**: Single source of truth, handles newlines/formatting automatically
+   - **Reliability**: Eliminates private key parsing issues across different environments
+   - **Maintainability**: Easier to copy/paste from Google Cloud Console
+
+2. **Multiple Fallback Methods**:
+   - **Advantage**: Handles different runtime environments and OpenSSL versions
+   - **Debugging**: Comprehensive error logging for production troubleshooting
+   - **Robustness**: First working method is cached for subsequent calls
+
+3. **Domain-Wide Delegation with Impersonation**:
+   - **Security**: Service account impersonates specific user (calendar owner)
+   - **Access Control**: Leverages existing Google Workspace domain permissions
+   - **Scalability**: No need to manually share calendars with service account
+
+#### Production Environment Considerations
+
+1. **Vercel Runtime Specifics**:
+   - Different OpenSSL version than local Node.js
+   - Environment variable handling differences
+   - Network latency considerations for API calls
+
+2. **Google Cloud Console Setup**:
+   - Service account must have domain-wide delegation enabled
+   - Correct OAuth scopes must be authorized in Google Workspace Admin
+   - Service account key must be generated in JSON format
+
+3. **Calendar Permissions**:
+   - Calendar owner must have domain admin privileges OR
+   - Service account domain-wide delegation must include calendar scopes
+   - No manual calendar sharing required when domain-wide delegation is properly configured
+
+#### Key Debugging Techniques
+
+1. **Incremental Error Isolation**:
+   - First solved authentication (OpenSSL decoder error)
+   - Then solved authorization (calendar permissions)
+   - Separated JWT creation from API calls for targeted debugging
+
+2. **Production Logging Strategy**:
+   ```typescript
+   console.log('JWT instance created successfully from JSON (method 1) with domain-wide delegation');
+   console.log('Using subject for domain-wide delegation:', subject);
+   ```
+
+3. **Environment Variable Validation**:
+   - Check for JSON credentials vs separate email/key
+   - Warn about missing domain-wide delegation configuration
+   - Validate all required Google environment variables
+
+#### Final Working Configuration
+
+**Vercel Environment Variables**:
+```bash
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"your_project",...}
+GOOGLE_CALENDAR_OWNER_EMAIL=owner@yourdomain.com
+GOOGLE_CALENDAR_ID=your_calendar_id
+GOOGLE_PROJECT_ID=your_project_id
+```
+
+**Production Result**: 
+- ✅ Authentication successful: `JWT instance created successfully from JSON (method 1) with domain-wide delegation`
+- ✅ Calendar events created successfully with Google Meet links
+- ✅ All 7 matches received calendar invitations
+- ✅ Weekly matching emails sent with meeting details
+
+This resolution demonstrates the importance of environment-specific debugging and the critical role of proper domain-wide delegation configuration in Google service account implementations.
 
 ### Password Reset Implementation Lessons Learned
 
@@ -1779,7 +1901,7 @@ const { error } = await supabase.auth.resetPasswordForEmail(email, {
 ```
 
 **Custom Template Features:**
-- **Branded design**: CivicMatch colors, logo, and typography
+- **Branded design**: Your app colors, logo, and typography
 - **Email client compatibility**: Works across Gmail, Apple Mail, Outlook, etc.
 - **Font integration**: DM Sans with fallbacks for older clients
 - **Spam-safe language**: Avoided phishing-trigger phrases
