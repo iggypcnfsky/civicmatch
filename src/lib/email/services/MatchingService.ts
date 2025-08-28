@@ -74,8 +74,10 @@ export class MatchingService {
 
   /**
    * Get users eligible for weekly matching
-   * Current: Minimal requirements for early-stage adoption (displayName or username)
-   * Future: Will require complete profiles, email preferences, and richer matching criteria
+   * Current: Minimal requirements + email preferences respected
+   * - Must have displayName or username
+   * - Must have emailPreferences.weeklyMatchingEnabled !== false
+   * Future: Will require complete profiles and richer matching criteria
    */
   async getEligibleUsers(options: MatchingOptions = {}): Promise<MatchProfile[]> {
     const {
@@ -104,11 +106,10 @@ export class MatchingService {
       const eligibleUsers = profiles.filter(profile => {
         const data = profile.data as MatchProfile['data'];
         
-        // TODO: Future - Require weekly matching enabled when user preferences are implemented
-        // Currently allowing all users since we're in early stage
-        // if (!data.emailPreferences?.weeklyMatchingEnabled) {
-        //   return false;
-        // }
+        // Respect user's weekly matching email preference
+        if (data.emailPreferences?.weeklyMatchingEnabled === false) {
+          return false;
+        }
 
         // TODO: Future - Require complete profiles when user adoption is higher
         // For now, only require displayName to have basic user info

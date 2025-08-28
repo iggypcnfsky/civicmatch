@@ -12,6 +12,7 @@ type ConversationItem = {
   avatarUrl?: string;
   updatedAt: string;
   lastPreview?: string;
+  otherUserId?: string;
 };
 
 type ChatMessage = {
@@ -61,7 +62,7 @@ export default function MessagesPage() {
           const participants: string[] = (c as { data: { participantIds?: string[] } }).data?.participantIds || [];
           const otherId = participants.find((p) => p !== uid) || uid;
           if (otherId) participantIds.push(otherId);
-          return { id: c.id, name: otherId, about: "", updatedAt: c.updated_at };
+          return { id: c.id, name: otherId, about: "", updatedAt: c.updated_at, otherUserId: otherId };
         });
         // Fetch counterpart profiles in one query
         if (participantIds.length > 0) {
@@ -115,27 +116,31 @@ export default function MessagesPage() {
   }, [currentId, userId]);
 
   return (
-    <div className="min-h-dvh p-3 pt-14 md:pt-18 md:p-4 lg:p-6">
+    <div className="min-h-dvh p-2 pt-14 md:pt-16 md:p-4 lg:p-6">
       {/* Content: split layout on desktop (1/3–2/3), list-first on mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] min-h-[calc(100dvh-5rem)] lg:pt-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-3 min-h-[calc(100dvh-5rem)] lg:pt-2">
       {/* Threads list */}
-      <aside className="lg:max-w-[520px] flex flex-col">
-        <div className="card p-0 h-full flex flex-col overflow-hidden">
+      <aside className="flex flex-col">
+        <div className="bg-[color:var(--background)] border border-[color:var(--border)] rounded-2xl h-full flex flex-col overflow-hidden shadow-sm">
           {/* Search */}
-          <div className="p-3 border-b border-divider">
+          <div className="p-4 border-b border-[color:var(--border)]">
             <div className="relative">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-60" />
-              <input className="w-full rounded-full border bg-transparent py-2 pl-9 pr-3 text-sm" placeholder="Search conversations" />
+              <Search className="size-4 absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+              <input className="w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/30 py-2.5 pl-10 pr-4 text-sm placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/20 focus:border-[color:var(--accent)] transition-colors" placeholder="Search conversations" />
             </div>
           </div>
           {/* Conversations */}
           <div className="flex-1 overflow-auto">
             {threads.length === 0 && (
-              <div className="h-full grid place-items-center p-6 text-center text-sm opacity-80">
-                <div className="flex flex-col items-center gap-2">
-                  <Inbox className="size-6 opacity-70" />
-                  <div>No conversations yet</div>
-                  <div className="text-xs opacity-70">Invite someone from Profiles to start a chat.</div>
+              <div className="h-full grid place-items-center p-8 text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="size-12 rounded-full bg-[color:var(--muted)]/40 flex items-center justify-center">
+                    <Inbox className="size-6 text-[color:var(--muted-foreground)]" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="font-medium text-sm">No conversations yet</div>
+                    <div className="text-xs text-[color:var(--muted-foreground)]">Invite someone from Profiles to start a chat.</div>
+                  </div>
                 </div>
               </div>
             )}
@@ -149,26 +154,30 @@ export default function MessagesPage() {
                     setCurrentId(t.id);
                   }
                 }}
-                className={`w-full flex items-start gap-3 px-3 py-2 text-left transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 ${
                   currentId === t.id
-                    ? "bg-[color:var(--muted)]/20"
-                    : "hover:bg-[color:var(--muted)]/10"
+                    ? "bg-[color:var(--accent)]/10 border-r-2 border-[color:var(--accent)]"
+                    : "hover:bg-[color:var(--muted)]/30"
                 }`}
               >
                 <div className="relative">
-                  <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
+                  <div className="size-11 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-[color:var(--border)] flex items-center justify-center">
                     {t.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : null}
+                      <img src={t.avatarUrl} alt="" className="w-full h-full object-cover aspect-square" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[color:var(--accent)]/20 to-[color:var(--accent)]/30 flex items-center justify-center text-sm font-medium text-[color:var(--accent)]">
+                        {t.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="min-w-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium truncate">{t.name}</span>
-                    <span className="text-xs opacity-60 whitespace-nowrap">{new Date(t.updatedAt).toLocaleDateString()}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-medium truncate text-sm">{t.name}</span>
+                    <span className="text-xs text-[color:var(--muted-foreground)] whitespace-nowrap">{new Date(t.updatedAt).toLocaleDateString()}</span>
                   </div>
-                  <div className="text-xs opacity-80 truncate">{t.lastPreview || ""}</div>
+                  <div className="text-xs text-[color:var(--muted-foreground)] truncate">{t.lastPreview || "No messages yet"}</div>
                 </div>
               </button>
             ))}
@@ -177,52 +186,65 @@ export default function MessagesPage() {
       </aside>
 
       {/* Active thread */}
-      <section className="hidden lg:flex flex-col card p-0 overflow-hidden">
+      <section className="hidden lg:flex flex-col bg-[color:var(--background)] border border-[color:var(--border)] rounded-2xl overflow-hidden shadow-sm">
         {(!currentId || threads.length === 0) ? (
-          <div className="flex-1 grid place-items-center p-8 text-center text-sm opacity-80">
-            <div className="flex flex-col items-center gap-2">
-              <Inbox className="size-7 opacity-70" />
-              <div>No messages yet</div>
-              <div className="text-xs opacity-70">Select a conversation or invite someone to connect.</div>
+          <div className="flex-1 grid place-items-center p-12 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="size-16 rounded-full bg-[color:var(--muted)]/40 flex items-center justify-center">
+                <Inbox className="size-8 text-[color:var(--muted-foreground)]" />
+              </div>
+              <div className="space-y-2">
+                <div className="font-medium">No messages yet</div>
+                <div className="text-sm text-[color:var(--muted-foreground)]">Select a conversation or invite someone to connect.</div>
+              </div>
             </div>
           </div>
         ) : (
         <>
-        <header className="p-3 flex items-center justify-between border-b border-divider">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
+        <header className="p-5 border-b border-[color:var(--border)]">
+          <button 
+            onClick={() => {
+              const currentThread = threads.find((t) => t.id === currentId);
+              if (currentThread?.otherUserId) {
+                window.location.href = `/profiles/${currentThread.otherUserId}`;
+              }
+            }}
+            className="flex items-center gap-4 min-w-0 hover:bg-[color:var(--muted)]/20 rounded-xl p-3 -m-3 transition-all duration-200 w-full"
+          >
+            <div className="size-14 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border-2 border-[color:var(--border)] flex items-center justify-center shadow-sm">
               {threads.find((t) => t.id === currentId)?.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={threads.find((t) => t.id === currentId)!.avatarUrl!} alt="" className="w-full h-full object-cover" />
-              ) : null}
+                <img src={threads.find((t) => t.id === currentId)!.avatarUrl!} alt="" className="w-full h-full object-cover aspect-square" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-[color:var(--accent)]/20 to-[color:var(--accent)]/30 flex items-center justify-center text-lg font-medium text-[color:var(--accent)]">
+                  {(threads.find((t) => t.id === currentId)?.name || "").charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
-            <div>
-              <div className="font-semibold truncate">{threads.find((t) => t.id === currentId)?.name || ""}</div>
-              <div className="text-xs opacity-70 truncate">{threads.find((t) => t.id === currentId)?.about || ""}</div>
+            <div className="min-w-0 text-left flex-1">
+              <div className="font-semibold text-base truncate mb-1">{threads.find((t) => t.id === currentId)?.name || ""}</div>
+              <div className="text-sm text-[color:var(--muted-foreground)] truncate">{threads.find((t) => t.id === currentId)?.about || "Click to view profile"}</div>
             </div>
-          </div>
-          <div className="hidden md:flex items-center gap-3 text-xs opacity-70">
-            {currentId && new Date(threads.find((t) => t.id === currentId)?.updatedAt || Date.now()).toLocaleString()}
-          </div>
+          </button>
         </header>
 
         {/* Messages list */}
-        <div className="flex-1 p-2 md:p-3 overflow-y-auto">
-          <div className="w-full space-y-2">
+        <div className="flex-1 px-5 py-4 overflow-y-auto">
+          <div className="w-full space-y-3">
             {messages.map((m, idx) => (
               <div key={m.id} className={`flex ${m.isMine ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`${
                     m.isMine
-                      ? "bg-[color:var(--accent)] text-[color:var(--background)]"
-                      : "bg-[color:var(--muted)]/30"
-                  } max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm`}
+                      ? "bg-[color:var(--accent)] text-white shadow-lg shadow-[color:var(--accent)]/20"
+                      : "bg-[color:var(--muted)]/40 border border-[color:var(--border)]"
+                  } max-w-[75%] rounded-2xl px-4 py-3 text-sm`}
                 >
-                  <div>{m.text}</div>
-                  <div className={`mt-1 flex items-center gap-1 text-[10px] ${m.isMine ? "opacity-90" : "opacity-60"}`}>
+                  <div className="leading-relaxed">{m.text}</div>
+                  <div className={`mt-2 flex items-center gap-1 text-[11px] ${m.isMine ? "text-white/80" : "text-[color:var(--muted-foreground)]"}`}>
                     <span>{m.time}</span>
                     {m.isMine && idx === messages.length - 2 && m.read && (
-                      <span className="inline-flex items-center gap-0.5"><CheckCheck className="size-3" /> Seen</span>
+                      <span className="inline-flex items-center gap-1 ml-2"><CheckCheck className="size-3" /> Seen</span>
                     )}
                   </div>
                 </div>
@@ -232,9 +254,9 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* Composer (fixed on mobile, static on md+) */}
+        {/* Composer */}
         <form
-          className="p-3 flex items-end gap-2 md:static fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur md:bg-transparent border-t border-divider"
+          className="p-5 border-t border-[color:var(--border)] bg-[color:var(--background)]"
           onSubmit={(e) => {
             e.preventDefault();
             if (!text.trim()) return;
@@ -249,35 +271,77 @@ export default function MessagesPage() {
             setTimeout(scrollToEnd, 50);
           }}
         >
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type a message"
-            rows={2}
-            className="flex-1 rounded-2xl border bg-transparent px-3 py-3 text-sm resize-none"
-          />
-          <button type="submit" className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm"
-            onClick={async (e) => {
-              e.preventDefault();
-              if (!text.trim() || !currentId || !userId) return;
-              const inserting: { conversation_id: string; sender_id: string; data: { text: string } } = {
-                conversation_id: currentId,
-                sender_id: userId,
-                data: { text },
-              };
-              setText("");
-              const now = new Date();
-              setMessages((prev) => [
-                ...prev,
-                { id: `optimistic-${now.getTime()}`, text, isMine: true, time: `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}` },
-              ]);
-              const { error } = await supabase.from("messages").insert(inserting);
-              if (error) { await failSafeLogout(); }
-              setTimeout(scrollToEnd, 50);
-            }}
-          >
-            <Send className="size-4" /> Send
-          </button>
+          <div className="relative">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type a message..."
+              rows={2}
+              className="w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/20 px-4 py-3 pr-12 text-sm resize-none placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/20 focus:border-[color:var(--accent)] transition-colors min-h-[60px] max-h-32"
+              style={{
+                height: 'auto',
+                minHeight: '60px',
+                fontSize: '16px' // Prevent zoom on iOS
+              }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = Math.min(target.scrollHeight, 128) + 'px';
+              }}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  if (e.metaKey || e.ctrlKey) {
+                    // Cmd+Enter or Ctrl+Enter: insert new line (default behavior)
+                    return;
+                  } else {
+                    // Enter: send message
+                    e.preventDefault();
+                    if (!text.trim() || !currentId || !userId) return;
+                    
+                    const inserting: { conversation_id: string; sender_id: string; data: { text: string } } = {
+                      conversation_id: currentId,
+                      sender_id: userId,
+                      data: { text },
+                    };
+                    setText("");
+                    const now = new Date();
+                    setMessages((prev) => [
+                      ...prev,
+                      { id: `optimistic-${now.getTime()}`, text, isMine: true, time: `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}` },
+                    ]);
+                    const { error } = await supabase.from("messages").insert(inserting);
+                    if (error) { await failSafeLogout(); }
+                    setTimeout(scrollToEnd, 50);
+                  }
+                }
+              }}
+            />
+            <button 
+              type="submit" 
+              disabled={!text.trim()}
+              className="absolute bottom-3 right-3 h-8 w-8 inline-flex items-center justify-center rounded-lg bg-[color:var(--accent)] text-white hover:bg-[color:var(--accent)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!text.trim() || !currentId || !userId) return;
+                const inserting: { conversation_id: string; sender_id: string; data: { text: string } } = {
+                  conversation_id: currentId,
+                  sender_id: userId,
+                  data: { text },
+                };
+                setText("");
+                const now = new Date();
+                setMessages((prev) => [
+                  ...prev,
+                  { id: `optimistic-${now.getTime()}`, text, isMine: true, time: `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}` },
+                ]);
+                const { error } = await supabase.from("messages").insert(inserting);
+                if (error) { await failSafeLogout(); }
+                setTimeout(scrollToEnd, 50);
+              }}
+            >
+              <Send className="size-4" />
+            </button>
+          </div>
         </form>
         </>
         )}

@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { emailService } from '@/lib/email/services/EmailService';
 import { matchingService } from '@/lib/email/services/MatchingService';
 
-// This endpoint is called by Vercel Cron for weekly matching emails
+// This endpoint is called by Vercel Cron for bi-weekly matching emails
+// Runs every Monday, but only executes matching every 2 weeks
 export async function GET(request: NextRequest) {
   try {
-    console.log('🎯 Starting weekly matching job...');
+    console.log('🎯 Starting bi-weekly matching job check...');
 
     // Verify this is coming from Vercel Cron (basic security)
     const authHeader = request.headers.get('Authorization');
@@ -16,29 +17,48 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Generate matches with Google Calendar meetings for this week
+    // Check if we should run this week (bi-weekly schedule)
+    const now = new Date();
+    const weekNumber = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000));
+    const shouldRun = weekNumber % 2 === 0; // Run on even weeks
+    
+    if (!shouldRun) {
+      console.log('📅 Skipping this week - bi-weekly schedule (odd week)');
+      return NextResponse.json({
+        success: true,
+        message: 'Skipped - bi-weekly schedule (odd week)',
+        weekNumber,
+        nextRun: 'Next Monday'
+      });
+    }
+
+    console.log('📅 Running bi-weekly matching (even week)...');
+
+    // Generate matches with Google Calendar meetings for this bi-weekly cycle
     const matches = await matchingService.generateMatchesWithMeetings({
       excludeRecentMatches: true,
-      minDaysSinceLastMatch: 7,
-      maxMatchesPerWeek: 50, // Process up to 50 matches per week
+      minDaysSinceLastMatch: 14, // 2 weeks since last match
+      maxMatchesPerWeek: 50, // Process up to 50 matches per cycle
       createMeetings: true // Enable Google Calendar integration
     });
     
-    console.log(`🎯 Generated ${matches.length} matches for weekly emails`);
+    console.log(`🎯 Generated ${matches.length} matches for bi-weekly emails`);
 
     if (matches.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No matches available for weekly emails',
-        sent: 0
+        message: 'No matches available for bi-weekly emails',
+        sent: 0,
+        weekNumber,
+        cycle: 'bi-weekly'
       });
     }
 
-    // Send weekly match emails to BOTH users in each match with strict rate limiting for Resend free plan (2 requests/second)
+    // Send bi-weekly match emails to BOTH users in each match with strict rate limiting for Resend free plan (2 requests/second)
     const results = [];
     const delayMs = 600; // 600ms delay = ~1.67 requests/second (safely under 2/sec limit)
 
-    console.log(`📤 Sending ${matches.length * 2} weekly match emails (both users per match) with 600ms delays for rate limiting...`);
+    console.log(`📤 Sending ${matches.length * 2} bi-weekly match emails (both users per match) with 600ms delays for rate limiting...`);
 
     let emailCount = 0;
     for (let i = 0; i < matches.length; i++) {
@@ -163,26 +183,28 @@ export async function GET(request: NextRequest) {
     const successful = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
 
-    console.log(`✅ Weekly matching job completed: ${successful} sent, ${failed} failed`);
+    console.log(`✅ Bi-weekly matching job completed: ${successful} sent, ${failed} failed`);
 
     if (failed > 0) {
-      console.warn('Some weekly match emails failed:', results.filter(r => !r.success));
+      console.warn('Some bi-weekly match emails failed:', results.filter(r => !r.success));
     }
 
     return NextResponse.json({
       success: true,
-      message: `Weekly matching completed: ${successful} emails sent, ${failed} failed`,
+      message: `Bi-weekly matching completed: ${successful} emails sent, ${failed} failed`,
       sent: successful,
       failed: failed,
       totalMatches: matches.length,
+      weekNumber,
+      cycle: 'bi-weekly',
       results: results
     });
 
   } catch (error) {
-    console.error('Weekly matching job failed:', error);
+    console.error('Bi-weekly matching job failed:', error);
     return NextResponse.json(
       { 
-        error: 'Weekly matching job failed', 
+        error: 'Bi-weekly matching job failed', 
         details: error instanceof Error ? error.message : 'Unknown error' 
       },
       { status: 500 }

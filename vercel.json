@@ -5,8 +5,9 @@
       "schedule": "15 12 * * 2"
     },
     {
-      "path": "/api/cron/weekly-matching",
-      "schedule": "0 9 * * 1"
+      "path": "/api/cron/weekly-matching", 
+      "schedule": "0 9 * * 1",
+      "description": "Bi-weekly matching - runs every Monday, service logic handles bi-weekly timing"
     }
   ]
 }

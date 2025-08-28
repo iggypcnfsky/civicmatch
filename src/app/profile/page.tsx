@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye, Mail } from "lucide-react";
+import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye, Mail, Trash, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 type AimItem = { title: string; summary: string };
@@ -59,6 +59,8 @@ export default function ProfilePage() {
     profileRemindersEnabled: true,
   });
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function failSafeLogout() {
@@ -191,6 +193,52 @@ export default function ProfilePage() {
     }
   };
 
+  const deleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const user = sess?.session?.user;
+      if (!user) return alert("Not authenticated");
+      
+      // First delete the profile (this will also handle related data cleanup)
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (profileError) {
+        console.error("Delete profile error:", profileError);
+        // Continue anyway as the auth deletion might work
+      }
+      
+      // Delete user account via API route
+      const response = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sess.session?.access_token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete account');
+      }
+      
+      // Clear local storage
+      localStorage.clear();
+      
+      // Sign out and redirect
+      await supabase.auth.signOut();
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Delete account error:", error);
+      alert("Failed to delete account. Please try again or contact support.");
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
 
 
   async function uploadAvatar(file: File) {
@@ -223,20 +271,8 @@ export default function ProfilePage() {
           >
             <Eye className="mr-2 size-4" /> Preview profile
           </button>
-          <button
-            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-            onClick={() => router.push('/auth/reset')}
-          >
-            <Lock className="mr-2 size-4" /> Reset Password
-          </button>
           <button className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={saveAll} disabled={loading}>
             <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
-          </button>
-          <button
-            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-            onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
-          >
-            <LogOut className="mr-2 size-4" /> Logout
           </button>
         </div>
       </header>
@@ -275,18 +311,18 @@ export default function ProfilePage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm">First name</label>
-                  <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={first} onChange={(e) => setFirst(e.target.value)} />
+                  <input className="w-full rounded-full border bg-transparent px-4 py-2" value={first} onChange={(e) => setFirst(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-sm">Last name</label>
-                  <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={last} onChange={(e) => setLast(e.target.value)} />
+                  <input className="w-full rounded-full border bg-transparent px-4 py-2" value={last} onChange={(e) => setLast(e.target.value)} />
                 </div>
               </div>
               
               {/* Email */}
               <div>
                 <label className="text-sm">Email</label>
-                <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input className="w-full rounded-full border bg-transparent px-4 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               
               {/* Location */}
@@ -294,14 +330,14 @@ export default function ProfilePage() {
                 <label className="text-sm">Location</label>
                 <div className="flex items-center gap-2">
                   <MapPin className="size-4 opacity-70" />
-                  <input className="flex-1 rounded-lg border bg-transparent px-3 py-2" value={location} onChange={(e) => setLocation(e.target.value)} />
+                  <input className="flex-1 rounded-full border bg-transparent px-4 py-2" value={location} onChange={(e) => setLocation(e.target.value)} />
                 </div>
               </div>
               
               {/* Tags */}
               <div>
                 <label className="text-sm">Tags (comma‑separated)</label>
-                <input className="w-full rounded-lg border bg-transparent px-3 py-2" value={tags} onChange={(e) => setTags(e.target.value)} />
+                <input className="w-full rounded-full border bg-transparent px-4 py-2" value={tags} onChange={(e) => setTags(e.target.value)} />
               </div>
               
               {/* Bio */}
@@ -385,6 +421,41 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* Account Actions Panel */}
+          <div id="account-actions" className="card space-y-4">
+            <div className="border-b border-divider pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserRound className="size-4 text-[color:var(--accent)]" />
+                <h2 className="font-semibold">Account Actions</h2>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {/* Reset Password */}
+              <button
+                className="w-full h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+                onClick={() => router.push('/auth/reset')}
+              >
+                <Lock className="mr-2 size-4" /> Reset Password
+              </button>
+
+              {/* Logout */}
+              <button
+                className="w-full h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+                onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
+              >
+                <LogOut className="mr-2 size-4" /> Logout
+              </button>
+
+              {/* Delete Account */}
+              <button
+                className="w-full h-10 inline-flex items-center justify-center rounded-full border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/50 dark:hover:bg-red-950/70 dark:text-red-400"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash className="mr-2 size-4" /> Delete Account
+              </button>
+            </div>
+          </div>
           </div>
 
           {/* Right Column - All other panels */}
@@ -464,38 +535,51 @@ export default function ProfilePage() {
         </section>
       </div>
 
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[color:var(--background)] rounded-lg p-6 max-w-md w-full border shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="size-6 text-red-500" />
+              <h3 className="text-lg font-semibold">Delete Account</h3>
+            </div>
+            <p className="text-[color:var(--muted-foreground)] mb-6">
+              Are you sure you want to delete your account? This action cannot be undone. All your profile data, connections, and messages will be permanently deleted.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm flex-1"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-red-300 bg-red-600 hover:bg-red-700 text-white text-sm flex-1 disabled:opacity-50"
+                onClick={deleteAccount}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>Deleting...</>
+                ) : (
+                  <>
+                    <Trash className="mr-2 size-4" /> Delete Account
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sticky mobile save bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t space-y-2">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t">
         <button
           className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
           onClick={saveAll}
           disabled={loading}
         >
           <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
-        </button>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-            onClick={async () => {
-              const { data: sess } = await supabase.auth.getSession();
-              const uid = sess?.session?.user?.id;
-              if (uid) router.push(`/profiles?user=${uid}`);
-            }}
-          >
-            <Eye className="mr-2 size-4" /> Preview
-          </button>
-          <button
-            className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-            onClick={() => router.push('/auth/reset')}
-          >
-            <Lock className="mr-2 size-4" /> Reset Password
-          </button>
-        </div>
-        <button
-          className="h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-          onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
-        >
-          <LogOut className="mr-2 size-4" /> Logout
         </button>
       </div>
     </div>

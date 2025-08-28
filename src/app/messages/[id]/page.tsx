@@ -21,6 +21,7 @@ export default function MobileChatPage() {
   const [name, setName] = useState<string>("");
   const [about, setAbout] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [otherUserId, setOtherUserId] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingMessage, setLoadingMessage] = useState<string>("Loading conversation...");
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +96,7 @@ export default function MobileChatPage() {
         const otherId = participants.find((p) => p !== uid) || uid || null;
         console.log('Other participant ID:', otherId);
         if (otherId) {
+          setOtherUserId(otherId);
           const { data: prof } = await supabase
             .from("profiles")
             .select("username, data")
@@ -139,32 +141,47 @@ export default function MobileChatPage() {
   }
 
   return (
-    <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-14">
+    <div className="min-h-dvh p-3 pt-14 bg-[color:var(--muted)]/5">
       {/* Header with avatar/name/about */}
-      <header className="p-3 flex items-center gap-3 border rounded-xl border-divider bg-[color:var(--background)]/80 mb-3">
-        <div className="size-10 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border border-divider">
+      <button 
+        onClick={() => {
+          if (otherUserId) {
+            window.location.href = `/profiles/${otherUserId}`;
+          }
+        }}
+        className="w-full p-4 flex items-center gap-4 bg-[color:var(--background)] border border-[color:var(--border)] rounded-2xl mb-4 hover:bg-[color:var(--muted)]/20 transition-all duration-200 shadow-sm"
+      >
+        <div className="size-12 rounded-full overflow-hidden bg-[color:var(--muted)]/40 border-2 border-[color:var(--border)] flex items-center justify-center">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : null}
+            <img src={avatarUrl} alt="" className="w-full h-full object-cover aspect-square" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[color:var(--accent)]/20 to-[color:var(--accent)]/30 flex items-center justify-center text-sm font-medium text-[color:var(--accent)]">
+              {name.charAt(0).toUpperCase()}
+            </div>
+          )}
         </div>
-        <div className="min-w-0">
-          <div className="font-semibold truncate">{name}</div>
-          <div className="text-xs opacity-70 truncate">{about}</div>
+        <div className="min-w-0 text-left flex-1">
+          <div className="font-semibold text-base truncate mb-1">{name}</div>
+          <div className="text-sm text-[color:var(--muted-foreground)] truncate line-clamp-2">{about || "Click to view profile"}</div>
         </div>
-      </header>
+      </button>
 
       {/* Messages */}
-      <div className="flex-1 p-3 overflow-y-auto pb-24">
-        <div className="w-full space-y-2">
+      <div className="flex-1 px-3 py-4 overflow-y-auto pb-28">
+        <div className="w-full space-y-3">
           {messages.map((m, idx) => (
             <div key={m.id} className={`flex ${m.isMine ? "justify-end" : "justify-start"}`}>
-              <div className={`${m.isMine ? "bg-[color:var(--accent)] text-[color:var(--background)]" : "bg-[color:var(--muted)]/30"} max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm`}>
-                <div>{m.text}</div>
-                <div className={`mt-1 flex items-center gap-1 text-[10px] ${m.isMine ? "opacity-90" : "opacity-60"}`}>
+              <div className={`${
+                m.isMine 
+                  ? "bg-[color:var(--accent)] text-white shadow-lg shadow-[color:var(--accent)]/20" 
+                  : "bg-[color:var(--background)] border border-[color:var(--border)]"
+              } max-w-[85%] rounded-2xl px-4 py-3 text-sm`}>
+                <div className="leading-relaxed">{m.text}</div>
+                <div className={`mt-2 flex items-center gap-1 text-[11px] ${m.isMine ? "text-white/80" : "text-[color:var(--muted-foreground)]"}`}>
                   <span>{m.time}</span>
                   {m.isMine && idx === messages.length - 2 && m.read && (
-                    <span className="inline-flex items-center gap-0.5"><CheckCheck className="size-3" /> Seen</span>
+                    <span className="inline-flex items-center gap-1 ml-2"><CheckCheck className="size-3" /> Seen</span>
                   )}
                 </div>
               </div>
@@ -176,7 +193,7 @@ export default function MobileChatPage() {
 
       {/* Composer sticky bottom */}
       <form
-        className="p-3 fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur border-t border-divider"
+        className="p-4 fixed bottom-0 left-0 right-0 bg-[color:var(--background)]/95 backdrop-blur border-t border-[color:var(--border)]"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!text.trim() || !id || !userId) return;
@@ -196,12 +213,56 @@ export default function MobileChatPage() {
           setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
         }}
       >
-        <div className="flex items-end gap-2">
-          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message" rows={2} className="flex-1 rounded-2xl border bg-transparent px-3 py-3 text-sm resize-none" />
+        <div className="relative">
+          <textarea 
+            value={text} 
+            onChange={(e) => setText(e.target.value)} 
+            placeholder="Type a message..." 
+            rows={2} 
+            className="w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/20 px-4 py-3 pr-12 text-sm resize-none placeholder:text-[color:var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/20 focus:border-[color:var(--accent)] transition-colors min-h-[60px] max-h-32"
+            style={{
+              height: 'auto',
+              minHeight: '60px',
+              fontSize: '16px' // Prevent zoom on iOS
+            }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = Math.min(target.scrollHeight, 128) + 'px';
+            }}
+            onKeyDown={async (e) => {
+              if (e.key === 'Enter') {
+                if (e.metaKey || e.ctrlKey) {
+                  // Cmd+Enter or Ctrl+Enter: insert new line (default behavior)
+                  return;
+                } else {
+                  // Enter: send message
+                  e.preventDefault();
+                  if (!text.trim() || !id || !userId) return;
+                  
+                  const now = new Date();
+                  const hh = now.getHours().toString().padStart(2, "0");
+                  const mm = now.getMinutes().toString().padStart(2, "0");
+                  const optimisticId = `optimistic-${now.getTime()}`;
+                  setMessages((prev) => [...prev, { id: optimisticId, text, isMine: true, time: `${hh}:${mm}` }]);
+                  const inserting: { conversation_id: string; sender_id: string; data: { text: string } } = {
+                    conversation_id: id,
+                    sender_id: userId,
+                    data: { text },
+                  };
+                  setText("");
+                  const { error } = await supabase.from("messages").insert(inserting);
+                  if (error) { await failSafeLogout(); }
+                  setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+                }
+              }
+            }}
+          />
           <button
             type="submit"
+            disabled={!text.trim()}
             aria-label="Send"
-            className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)]"
+            className="absolute bottom-3 right-3 h-8 w-8 inline-flex items-center justify-center rounded-lg bg-[color:var(--accent)] text-white hover:bg-[color:var(--accent)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
           >
             <Send className="size-4" />
           </button>

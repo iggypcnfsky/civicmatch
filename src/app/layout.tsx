@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   description: "Connect with civic tech founders.",
   manifest: "/manifest.webmanifest",
   themeColor: "#111827",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
   icons: {
     icon: [
       { url: "/icon.svg?v=2", type: "image/svg+xml" },
