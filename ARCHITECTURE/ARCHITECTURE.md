@@ -1010,6 +1010,9 @@ RESEND_WEBHOOK_SECRET=whsec_xxxxxxxxxxxx
 EMAIL_ENABLED=true
 EMAIL_TEST_MODE=false # Set to true in development
 
+# Contact Management
+RESEND_AUDIENCE_ID=audienceid # Your Resend audience ID
+
 # Note: Uses existing NEXT_PUBLIC_SUPABASE_ANON_KEY for email logging
 # No service role needed - safer approach with proper RLS policies
 ```

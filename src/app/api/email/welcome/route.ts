@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { emailService } from '@/lib/email/services/EmailService';
+import { contactService } from '@/lib/email/services/ContactService';
 import type { Database } from '@/types/supabase';
 
 // Server-side Supabase client (for email sending)
@@ -63,6 +64,18 @@ export async function POST(request: NextRequest) {
     const exploreUrl = `${baseUrl}/`;
     const preferencesUrl = `${baseUrl}/profile#email-preferences`;
 
+    // Add contact to Resend audience (don't fail signup if this fails)
+    const contactResult = await contactService.createContactFromProfile(
+      email,
+      displayName,
+      userId
+    );
+
+    if (!contactResult.success) {
+      console.warn('Failed to add contact to Resend audience:', contactResult.error);
+      // Continue with email sending even if contact creation fails
+    }
+
     // Send welcome email
     const result = await emailService.sendWelcomeEmail(
       email,
@@ -92,6 +105,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Welcome email sent successfully',
       emailId: result.data?.id,
+      contactId: contactResult.success ? contactResult.contactId : undefined,
     });
 
   } catch (error) {

@@ -112,6 +112,13 @@ Create `.env.local` and add:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+# Email Configuration (see ARCHITECTURE.md for complete setup)
+RESEND_API_KEY=re_xxxxxxxxxxxx
+RESEND_FROM_EMAIL=noreply@yourdomain.com
+RESEND_AUDIENCE_ID=audienceID
+EMAIL_ENABLED=true
+EMAIL_TEST_MODE=false
 ```
 
 Supabase setup (summary — see `ARCHITECTURE.md` for full details):
