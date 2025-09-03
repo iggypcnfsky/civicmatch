@@ -144,12 +144,36 @@ calculateMatchScore(currentUser, candidateUser): number {
 Auth context: the app tree is wrapped by a lightweight client `AuthProvider` in `app/layout.tsx`. It exposes `status` (loading/authenticated/unauthenticated), `session`, and `user` via `useAuth()`. Components like `TopBar`, Explore, and Profiles read auth from this context (single source of truth) instead of querying Supabase directly on every page.
 
 ### Explore view
+
+**⚠️ For complete Google Maps integration architecture, location-based discovery features, and implementation details, see [EXPLORE.md](./EXPLORE.md)**
+
+#### Current Implementation (Pill List)
 - Default view after login at `/`
-- Masonry grid of profile cards (CSS columns) with infinite loading using `IntersectionObserver`
+- Horizontal scrolling pills showing avatar + name
 - Desktop: sticky filter panel on the right with pill‑styled controls (each with Lucide icon); Favorites toggle uses accent‑filled pill when active. Offset below the sticky top bar
 - Mobile: sticky bottom "Filters" pill that opens a bottom‑sheet with larger (h‑12) pill controls, including a Favorites toggle; hamburger removed
-- Profile cards: rounded corners, subtle shadow, role badge and save control; show name + short bio
-- Clicking a profile card navigates to the Profiles view (`/profiles`) to show a full profile
+- Profile pills: rounded corners, subtle shadow, show name only
+- Clicking a profile pill navigates to the Profiles view (`/profiles`) to show a full profile
+
+#### Planned Enhancement (Interactive World Map) 🚧 PLANNED
+**Status**: Detailed implementation plan available in [EXPLORE.md](./EXPLORE.md)
+
+**Vision**: Transform discovery from chronological list to geographic exploration:
+- **Full-screen Google Maps**: Interactive world map showing users positioned by location
+- **Location-based Pills**: User avatars + names positioned according to profile location data
+- **Geographic Discovery**: "Who's building impact projects near me?" and global community visualization
+- **Enhanced Filtering**: Maintain existing filters plus location-based options (near me, by country, radius-based)
+- **Clustering**: Intelligent grouping for dense urban areas
+- **Mobile Optimization**: Touch-friendly map interactions with bottom sheet controls
+
+**Key Features Planned**:
+- Google Maps JavaScript API integration with custom dark mode styling
+- Geocoding service for location coordinate resolution
+- Viewport-based profile loading for performance
+- Progressive enhancement maintaining backward compatibility
+- Privacy-aware location sharing with user control
+
+**Implementation**: See [EXPLORE.md](./EXPLORE.md) for detailed architecture, technical specifications, and 3-phase implementation plan
 
 #### Explore data fetching & pagination (MVP)
 - **Source**: `public.profiles` (RLS allows `SELECT` for all). Read fields: `user_id`, `username`, and `data` (use `data.displayName`, `data.bio`, `data.skills[0]` as role, `data.avatarUrl`).
@@ -1400,6 +1424,7 @@ EMAIL_TEST_MODE=false # Set to true in development
 
 This architecture document provides the foundational design for CivicMatch's core platform features. For specialized system documentation, refer to:
 
+- **[EXPLORE.md](./EXPLORE.md)** - Google Maps integration architecture, location-based discovery features, geographic filtering, and interactive world map implementation
 - **[MESSAGES.md](./MESSAGES.md)** - Complete messaging system architecture, UI design patterns, message composer features, keyboard shortcuts, mobile optimization, and implementation details
 - **[WEEKLYMATCHING.md](./WEEKLYMATCHING.md)** - Complete bi-weekly matching system architecture, Google Calendar integration, user preferences, and operational details
 - **[MYPROFILE.md](../MYPROFILE.md)** - My Profile view implementation, layout architecture, account management features, and responsive design patterns
@@ -1416,7 +1441,7 @@ This approach enables rapid iteration while maintaining production reliability, 
 
 ---
 
-*For detailed system implementations, see the specialized documentation: [MESSAGES.md](./MESSAGES.md) for messaging, [WEEKLYMATCHING.md](./WEEKLYMATCHING.md) for matching, and [MYPROFILE.md](../MYPROFILE.md) for profile management.*
+*For detailed system implementations, see the specialized documentation: [EXPLORE.md](./EXPLORE.md) for geographic discovery, [MESSAGES.md](./MESSAGES.md) for messaging, [WEEKLYMATCHING.md](./WEEKLYMATCHING.md) for matching, and [MYPROFILE.md](../MYPROFILE.md) for profile management.*
 
 ## PWA (MVP) plan
 

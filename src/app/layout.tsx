@@ -16,23 +16,21 @@ export const metadata: Metadata = {
   title: "Civic Match",
   description: "Connect with civic tech founders.",
   manifest: "/manifest.webmanifest",
-  themeColor: "#111827",
-  viewport: {
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.png",
+  },
+};
+
+export function generateViewport() {
+  return {
     width: "device-width",
     initialScale: 1,
     maximumScale: 1,
     userScalable: false,
-  },
-  icons: {
-    icon: [
-      { url: "/icon.svg?v=2", type: "image/svg+xml" },
-      { url: "/favicon.ico?v=2", sizes: "any" },
-    ],
-    apple: "/icon.png",
-    shortcut: ["/favicon.ico?v=2"],
-    other: [{ rel: "mask-icon", url: "/icon.svg" }],
-  },
-};
+    themeColor: "#111827",
+  };
+}
 
 export default function RootLayout({
   children,

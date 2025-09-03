@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye, Mail, Trash, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import LocationAutocomplete, { LocationData } from "@/components/LocationAutocomplete";
+import { loadGoogleMaps } from "@/lib/google/maps-loader";
 
 type AimItem = { title: string; summary: string };
 type CustomSection = { id: string; title: string; content: string };
@@ -40,7 +42,7 @@ export default function ProfilePage() {
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
   const [email, setEmail] = useState("");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState<string | LocationData>("");
   const [tags, setTags] = useState("");
   const [bio, setBio] = useState("");
   const [links, setLinks] = useState<string[]>([]);
@@ -61,6 +63,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function failSafeLogout() {
@@ -110,7 +113,20 @@ export default function ProfilePage() {
       setLast(display.split(" ").slice(1).join(" ") || "");
     }
     setEmail(asString(d.email) ?? "");
-    setLocation(asString(d.location) ?? "");
+    
+    // Handle location data - could be string (legacy) or LocationData object
+    if (d.location) {
+      if (typeof d.location === 'string') {
+        setLocation(d.location);
+      } else if (typeof d.location === 'object' && d.location && 'displayName' in d.location) {
+        setLocation(d.location as LocationData);
+      } else {
+        setLocation(asString(d.location) ?? "");
+      }
+    } else {
+      setLocation("");
+    }
+    
     const tagsArray = Array.isArray(d.tags) ? asStringArray(d.tags) : asStringArray(d.tags);
     setTags(tagsArray.join(", "));
     setBio(asString(d.bio) ?? "");
@@ -134,6 +150,16 @@ export default function ProfilePage() {
       });
     }
   }
+
+  // Load Google Maps API
+  useEffect(() => {
+    loadGoogleMaps()
+      .then(() => setMapsLoaded(true))
+      .catch(error => {
+        console.warn('Failed to load Google Maps:', error);
+        setMapsLoaded(false);
+      });
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -328,10 +354,24 @@ export default function ProfilePage() {
               {/* Location */}
               <div>
                 <label className="text-sm">Location</label>
-                <div className="flex items-center gap-2">
-                  <MapPin className="size-4 opacity-70" />
-                  <input className="flex-1 rounded-full border bg-transparent px-4 py-2" value={location} onChange={(e) => setLocation(e.target.value)} />
-                </div>
+                {mapsLoaded ? (
+                  <LocationAutocomplete
+                    value={location}
+                    onChange={setLocation}
+                    placeholder="Enter your city or location"
+                    showUpdatePrompt={typeof location === 'string' && location.length > 0}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="size-4 opacity-70" />
+                    <input 
+                      className="flex-1 rounded-full border bg-transparent px-4 py-2" 
+                      value={typeof location === 'string' ? location : location?.displayName || ''} 
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Enter your city or location"
+                    />
+                  </div>
+                )}
               </div>
               
               {/* Tags */}

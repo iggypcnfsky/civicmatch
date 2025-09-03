@@ -1,21 +1,39 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { SlidersHorizontal, X, Star, UserRound, Eye, EyeOff, Lock } from "lucide-react";
+import { X, Star, Eye, EyeOff, Lock, MapPin } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
+import ExploreMap from "@/components/ExploreMap";
 
-  type Profile = { id: string; name: string; role: string; bio: string; avatarUrl?: string; tags?: string[] };
+interface Profile {
+  id: string;
+  name: string;
+  role: string;
+  bio: string;
+  avatarUrl?: string;
+  tags?: string[];
+}
+
+interface ProfileWithLocation extends Profile {
+  location: {
+    coordinates?: { lat: number; lng: number; accuracy: string };
+    displayName?: string;
+    placeId?: string;
+    source?: 'places_autocomplete' | 'geocoded' | 'manual';
+    geocodedAt?: string;
+    raw: string | object; // original location data (legacy)
+    needsUpdate?: boolean; // true for legacy string locations
+  };
+}
 
 const PAGE_SIZE = 24;
 
 export default function ExplorePage() {
   const { status } = useAuth();
   const isAuthenticated = status === "authenticated" ? true : status === "unauthenticated" ? false : null;
-  const [mounted, setMounted] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -25,7 +43,7 @@ export default function ExplorePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showGuidelines, setShowGuidelines] = useState(false);
 
-  const [items, setItems] = useState<Profile[]>([]);
+  const [items, setItems] = useState<ProfileWithLocation[]>([]);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [favoriteIds] = useState<Set<string>>(() => {
@@ -105,14 +123,46 @@ export default function ExplorePage() {
     return [];
   };
 
-  function mapRowToProfile(row: ProfileRow): Profile {
+  function mapRowToProfile(row: ProfileRow): ProfileWithLocation {
     const d = (row.data ?? {}) as Record<string, unknown>;
     const name = asString(d["displayName"]) || row.username || "Member";
     const role = (asStringArray(d["skills"])?.[0]) || "Member";
     const tags = asStringArray(d["tags"])?.slice(0,3) || [];
     const bio = asString(d["bio"]) || "";
     const avatarUrl = asString(d["avatarUrl"]);
-    return { id: row.user_id, name, role, bio, avatarUrl, tags };
+    
+    // Handle location data
+    let location: ProfileWithLocation['location'];
+    const locationData = d["location"];
+    
+    if (locationData && typeof locationData === 'object' && 'coordinates' in locationData) {
+      // New format with coordinates
+      const locData = locationData as Record<string, unknown>;
+      location = {
+        coordinates: locData.coordinates as { lat: number; lng: number; accuracy: string },
+        displayName: locData.displayName as string,
+        placeId: locData.placeId as string,
+        source: locData.source as 'places_autocomplete' | 'geocoded' | 'manual',
+        geocodedAt: locData.geocodedAt as string,
+        raw: locationData,
+        needsUpdate: false
+      };
+    } else if (locationData && typeof locationData === 'string' && locationData.trim()) {
+      // Legacy string format
+      location = {
+        raw: locationData,
+        displayName: locationData,
+        needsUpdate: true
+      };
+    } else {
+      // No location data
+      location = {
+        raw: "",
+        needsUpdate: false
+      };
+    }
+    
+    return { id: row.user_id, name, role, bio, avatarUrl, tags, location };
   }
 
   async function fetchNextPage() {
@@ -150,15 +200,37 @@ export default function ExplorePage() {
     }
   }
 
+  async function fetchAllProfiles() {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      const query = supabase
+        .from("profiles")
+        .select("user_id, username, data, created_at")
+        .order("created_at", { ascending: false })
+        .limit(500); // Reasonable limit for map display
+        
+      const { data, error } = (await query) as { data: ProfileRow[] | null; error: unknown };
+      if (error) throw error as Error;
+      let mapped = (data ?? []).map(mapRowToProfile);
+      if (favoritesOnly) mapped = mapped.filter((p) => favoriteIds.has(p.id));
+      setItems(mapped);
+      setHasMore(false); // No pagination needed for map view
+    } catch {
+      await failSafeLogout();
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
-    setMounted(true);
     if (isAuthenticated) {
       // Initial load on auth
       setItems([]);
       setOffset(0);
       setHasMore(true);
-      // Fire and forget
-      fetchNextPage();
+      // Load all profiles for map view
+      fetchAllProfiles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
@@ -618,97 +690,72 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="min-h-dvh p-3 md:p-4 lg:p-6 pt-3 md:pt-4">
+    <div className="relative">
+      {/* Full-screen map */}
+      <div className="fixed inset-0 z-0">
+        <ExploreMap
+          profiles={items}
+          invitedIds={invitedIds}
+          className="w-full h-full"
+        />
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px] items-start">
-        {/* Profile Pill list */}
-        <section className="min-w-0">
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            {items.map((p, idx) => (
-              <Link
-                key={p.id}
-                href={`/profiles?user=${encodeURIComponent(p.id)}`}
-                className={`inline-flex items-center gap-2 rounded-full border border-divider bg-[color:var(--background)] pr-3 pl-1.5 py-1.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40 transition-all duration-300 ${invitedIds.has(p.id) ? "opacity-50" : "hover:-translate-y-0.5"} ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"}`}
-                style={{ transitionDelay: `${idx * 20}ms` }}
-              >
-                <span className="relative inline-flex">
-                  {p.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.avatarUrl} alt={p.name} className="h-10 w-10 rounded-full object-cover" />
-                  ) : (
-                    <span className="h-10 w-10 rounded-full bg-[color:var(--muted)]/40 inline-flex items-center justify-center">
-                      <UserRound className="size-4 opacity-70" />
-                    </span>
-                  )}
-                </span>
-                <span className="text-sm font-medium whitespace-nowrap">{p.name}</span>
-              </Link>
-            ))}
+      {/* Desktop overlay filter panel (bottom left) */}
+      <div className="fixed bottom-6 left-6 z-30 hidden lg:block">
+        <div className="bg-[color:var(--background)]/95 backdrop-blur-md border border-divider rounded-2xl p-4 shadow-xl space-y-4 w-80">
+          <div className="flex items-center gap-2">
+            <MapPin className="size-4 text-[color:var(--accent)]" />
+            <h3 className="font-semibold">Explore</h3>
           </div>
-          {isLoading && <div className="py-4 text-center text-sm opacity-70">Loading…</div>}
-          {!hasMore && items.length > 0 && (
-            <div className="py-6 text-center text-sm opacity-70">You’re all caught up</div>
-          )}
-          <div ref={sentinelRef} className="h-10" />
-        </section>
-
-        {/* Sticky filter panel (desktop) */}
-        <aside className="hidden lg:block sticky top-20 h-[calc(100dvh-5rem)] overflow-auto">
-            <div className="card space-y-3 rounded-2xl">
-            <div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[color:var(--accent)]" /><h3 className="font-semibold">Filters</h3></div>
-            <div className="text-xs opacity-80">Keep it simple: show only your favorites.</div>
+          
+          {/* Filters */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium opacity-80">Filters</h4>
             <button
               className={`${favoritesOnly ? 'h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
               onClick={() => {
                 const next = !favoritesOnly;
                 setFavoritesOnly(next);
-                setItems([]); setOffset(0); setHasMore(true);
-                fetchNextPage();
+                setItems([]);
+                setOffset(0);
+                setHasMore(true);
+                fetchAllProfiles();
               }}
             >
-              <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
+              <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Show all users'}
             </button>
           </div>
-        </aside>
-      </div>
 
-      {/* Sticky bottom filter control (mobile) */}
-      <div className="lg:hidden fixed bottom-3 left-0 right-0 flex justify-center z-40">
-        <button
-          className="mx-auto h-12 px-6 rounded-full border border-divider bg-[color:var(--background)] shadow-lg flex items-center gap-2 text-sm font-medium"
-          onClick={() => setFiltersOpen(true)}
-        >
-          <SlidersHorizontal className="size-4" /> Filters
-        </button>
-      </div>
-
-      {/* Mobile filters modal */}
-      {filtersOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setFiltersOpen(false)} />
-          <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl border border-divider bg-[color:var(--background)] p-4 space-y-3 max-h-[80vh] overflow-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[color:var(--accent)]" /><h3 className="font-semibold">Filters</h3></div>
-              <button className="h-8 w-8 rounded-full border border-divider flex items-center justify-center" onClick={() => setFiltersOpen(false)} aria-label="Close filters">
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="text-xs opacity-80">Show only your favorites.</div>
-            <button
-              className={`${favoritesOnly ? 'h-12 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
-              onClick={() => {
-                const next = !favoritesOnly;
-                setFavoritesOnly(next);
-                setItems([]); setOffset(0); setHasMore(true);
-                fetchNextPage();
-              }}
-            >
-              <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Only favorites'}
-            </button>
-            <button className="h-12 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--background)] hover:bg-[color:var(--muted)]/20 text-sm" onClick={() => setFiltersOpen(false)}>Done</button>
+          {/* Stats */}
+          <div className="text-xs opacity-70 pt-2 border-t border-divider">
+            Showing {items.length} people on map
+            {items.some(p => p.location.needsUpdate) && (
+              <div className="mt-1 text-gray-400">
+                <span className="inline-block w-3 h-2 bg-gray-500 border border-dashed border-gray-400 rounded mr-1"></span>
+                Gray dashed = needs location update
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Mobile filter button (bottom center) */}
+      <div className="lg:hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
+        <button
+          className={`h-10 px-4 inline-flex items-center justify-center rounded-full gap-2 text-sm shadow-lg backdrop-blur-md ${favoritesOnly ? 'border border-transparent bg-[color:var(--accent)] text-[color:var(--background)]' : 'border border-divider bg-[color:var(--background)]/95 hover:bg-[color:var(--muted)]/20'}`}
+          onClick={() => {
+            const next = !favoritesOnly;
+            setFavoritesOnly(next);
+            setItems([]);
+            setOffset(0);
+            setHasMore(true);
+            fetchAllProfiles();
+          }}
+        >
+          <Star className="size-4" />
+          {favoritesOnly ? 'Favorites' : 'Filters'}
+        </button>
+      </div>
     </div>
   );
 }
