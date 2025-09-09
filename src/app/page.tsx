@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Star, Eye, EyeOff, Lock, MapPin } from "lucide-react";
+import { X, Star, Eye, EyeOff, Lock } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
@@ -200,7 +200,7 @@ export default function ExplorePage() {
     }
   }
 
-  async function fetchAllProfiles() {
+  async function fetchAllProfiles(filterFavorites?: boolean) {
     if (isLoading) return;
     setIsLoading(true);
     try {
@@ -213,7 +213,11 @@ export default function ExplorePage() {
       const { data, error } = (await query) as { data: ProfileRow[] | null; error: unknown };
       if (error) throw error as Error;
       let mapped = (data ?? []).map(mapRowToProfile);
-      if (favoritesOnly) mapped = mapped.filter((p) => favoriteIds.has(p.id));
+      
+      // Use parameter if provided, otherwise use current state
+      const shouldFilterFavorites = filterFavorites !== undefined ? filterFavorites : favoritesOnly;
+      if (shouldFilterFavorites) mapped = mapped.filter((p) => favoriteIds.has(p.id));
+      
       setItems(mapped);
       setHasMore(false); // No pagination needed for map view
     } catch {
@@ -700,60 +704,23 @@ export default function ExplorePage() {
         />
       </div>
 
-      {/* Desktop overlay filter panel (bottom left) */}
-      <div className="fixed bottom-6 left-6 z-30 hidden lg:block">
-        <div className="bg-[color:var(--background)]/95 backdrop-blur-md border border-divider rounded-2xl p-4 shadow-xl space-y-4 w-80">
-          <div className="flex items-center gap-2">
-            <MapPin className="size-4 text-[color:var(--accent)]" />
-            <h3 className="font-semibold">Explore</h3>
-          </div>
-          
-          {/* Filters */}
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium opacity-80">Filters</h4>
-            <button
-              className={`${favoritesOnly ? 'h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm' : 'h-10 w-full inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm'}`}
-              onClick={() => {
-                const next = !favoritesOnly;
-                setFavoritesOnly(next);
-                setItems([]);
-                setOffset(0);
-                setHasMore(true);
-                fetchAllProfiles();
-              }}
-            >
-              <Star className="size-4" /> {favoritesOnly ? 'Showing favorites' : 'Show all users'}
-            </button>
-          </div>
-
-          {/* Stats */}
-          <div className="text-xs opacity-70 pt-2 border-t border-divider">
-            Showing {items.length} people on map
-            {items.some(p => p.location.needsUpdate) && (
-              <div className="mt-1 text-gray-400">
-                <span className="inline-block w-3 h-2 bg-gray-500 border border-dashed border-gray-400 rounded mr-1"></span>
-                Gray dashed = needs location update
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile filter button (bottom center) */}
-      <div className="lg:hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
+      {/* Filter button (bottom right) - both desktop and mobile */}
+      <div className="fixed bottom-6 right-6 z-40">
         <button
-          className={`h-10 px-4 inline-flex items-center justify-center rounded-full gap-2 text-sm shadow-lg backdrop-blur-md ${favoritesOnly ? 'border border-transparent bg-[color:var(--accent)] text-[color:var(--background)]' : 'border border-divider bg-[color:var(--background)]/95 hover:bg-[color:var(--muted)]/20'}`}
+          className={`h-10 w-10 inline-flex items-center justify-center rounded-full shadow-lg backdrop-blur-md transition-colors ${favoritesOnly ? 'border border-transparent bg-[color:var(--accent)] text-[color:var(--background)]' : 'border border-divider bg-[color:var(--background)]/95 hover:bg-[color:var(--muted)]/20'}`}
           onClick={() => {
             const next = !favoritesOnly;
             setFavoritesOnly(next);
             setItems([]);
             setOffset(0);
             setHasMore(true);
-            fetchAllProfiles();
+            
+            // Fetch profiles with the new filter state
+            fetchAllProfiles(next);
           }}
+          title={favoritesOnly ? 'Showing favorites only - click to show all' : 'Show favorites only'}
         >
-          <Star className="size-4" />
-          {favoritesOnly ? 'Favorites' : 'Filters'}
+          <Star className={`size-4 ${favoritesOnly ? 'fill-current' : ''}`} />
         </button>
       </div>
     </div>

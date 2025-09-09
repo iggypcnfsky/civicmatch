@@ -64,6 +64,8 @@ Client (RSC + selective CSR)
 - **Connection**: id, requesterId, addresseeId, status(pending|accepted|declined|blocked), createdAt
 - **Conversation**: id, participantIds[], createdAt, updatedAt
 - **Message**: id, conversationId, senderId, text, attachments[], createdAt, readAt?
+- **FundingOpportunity**: id, createdBy, title, countryCode, amount, deadline, websiteUrl, description, tags[], organization, type, createdAt, data{} (JSONB-first)
+- **FundingInterest**: id, fundingOpportunityId, userId, collaborationInterest?, notes?, skillsOffered[], createdAt, data{} (progressive enhancement)
 - **EmailLog**: id, userId, emailType, resendId, status, createdAt, data (separate table for analytics)
 - **SavedSearch** (optional later): id, userId, filters, createdAt
 
@@ -76,6 +78,7 @@ Indexes focus on username, search facets (skills/causes), and conversationId for
 - **Matching & search**: filter by values, skills, causes; sort by a rule‑based score
 - **Messaging**: 1:1 conversations with modern UI, keyboard shortcuts, and mobile optimization (see [MESSAGES.md](./MESSAGES.md))
 - **Connections**: request/accept/block; dashboard overview
+- **Funding Sources**: community-driven funding opportunity discovery with collaboration features (see [FUNDING.md](./FUNDING.md))
 - **Email system**: welcome emails, password resets, weekly reminders, matching suggestions with integrated messaging
 - **Notifications**: in‑app (toast/badge); email campaigns and transactional messages
 
@@ -1430,6 +1433,7 @@ This architecture document provides the foundational design for CivicMatch's cor
 - **[EXPLORE.md](./EXPLORE.md)** - Google Maps integration architecture, location-based discovery features, geographic filtering, and interactive world map implementation
 - **[MESSAGES.md](./MESSAGES.md)** - Complete messaging system architecture, UI design patterns, message composer features, keyboard shortcuts, mobile optimization, and implementation details
 - **[WEEKLYMATCHING.md](./WEEKLYMATCHING.md)** - Complete bi-weekly matching system architecture, Google Calendar integration, user preferences, and operational details
+- **[FUNDING.md](./FUNDING.md)** - Funding Sources feature architecture, community-driven opportunity discovery, collaboration systems, progressive interest expression, and future automated scraping capabilities
 - **[MYPROFILE.md](../MYPROFILE.md)** - My Profile view implementation, layout architecture, account management features, and responsive design patterns
 
 The document emphasizes:
@@ -1444,7 +1448,7 @@ This approach enables rapid iteration while maintaining production reliability, 
 
 ---
 
-*For detailed system implementations, see the specialized documentation: [EXPLORE.md](./EXPLORE.md) for geographic discovery, [MESSAGES.md](./MESSAGES.md) for messaging, [WEEKLYMATCHING.md](./WEEKLYMATCHING.md) for matching, and [MYPROFILE.md](../MYPROFILE.md) for profile management.*
+*For detailed system implementations, see the specialized documentation: [EXPLORE.md](./EXPLORE.md) for geographic discovery, [MESSAGES.md](./MESSAGES.md) for messaging, [WEEKLYMATCHING.md](./WEEKLYMATCHING.md) for matching, [FUNDING.md](./FUNDING.md) for funding opportunities, and [MYPROFILE.md](../MYPROFILE.md) for profile management.*
 
 ## PWA (MVP) plan
 

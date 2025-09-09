@@ -216,40 +216,37 @@ const mapConfig = {
 #### Desktop Layout ✅ IMPLEMENTED
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ TopBar (Global) - Fixed overlay (z-index: high)            │
+│ TopBar (Transparent) - Logo/buttons with white backgrounds │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│                Google Maps (Full Screen, no padding)       │
-│              [Custom HTML Pills via AdvancedMarkerElement] │
+│                Google Maps (Full Screen)                   │
+│              [Avatar-Only Pills - 48px circular]           │
 │                                                             │
 │                                                             │
 │                                                             │
-│  ┌─────────────────┐                                        │
-│  │ Filter Panel    │ (Bottom Left Overlay)                 │
-│  │ - Favorites     │ (Backdrop blur + shadow)              │
-│  │ - User Stats    │                                        │
-│  │ - Legend        │                                        │
-│  └─────────────────┘                                        │
+│                                                    ┌─────┐  │
+│                                                    │ ⭐  │  │
+│                                                    │     │  │
+│                                                    └─────┘  │
+│                                           (Bottom Right)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 #### Mobile Layout ✅ IMPLEMENTED
 ```
 ┌─────────────────────────────────────┐
-│ TopBar (Global) - Fixed overlay     │
+│ TopBar (Transparent) - White buttons│
 ├─────────────────────────────────────┤
 │                                     │
 │         Google Maps                 │
 │       (Full Screen)                 │
 │                                     │
-│   [Custom HTML Pills]               │
+│   [Avatar-Only Pills - 48px]       │
 │                                     │
-│                                     │
-├─────────────────────────────────────┤
-│ ┌─────────────────────────────────┐ │
-│ │  Compact Filter Panel (Bottom)  │ │
-│ │    [Favorites Toggle]           │ │
-│ └─────────────────────────────────┘ │
+│                              ┌───┐ │
+│                              │ ⭐ │ │
+│                              └───┘ │
+│                      (Bottom Right)│
 └─────────────────────────────────────┘
 ```
 
@@ -257,49 +254,71 @@ const mapConfig = {
 
 #### Pill Specifications ✅ IMPLEMENTED
 - **Technology**: AdvancedMarkerElement with custom HTML content
-- **Size**: Compact design with avatar (28px) + name (truncated)
-- **Components**: Avatar image/icon + username text
-- **Enhanced Shadows**: Deep shadows for visibility on dark map
+- **Design**: Avatar-only circular markers (no names on map)
+- **Size**: 48px avatars (h-12 w-12) for optimal visibility
+- **Components**: Avatar image or initials on dark background
+- **Enhanced Shadows**: 15% stronger shadows for visibility on dark map
 - **States**: Default, Hover, Invited, Needs Location Update
 - **Location Visual States**: 
-  - **Dark Solid Pills**: Users with proper coordinates (`#252422` background)
-  - **Light Gray Dashed Pills**: Users needing location updates (`#6B7280` background)
+  - **Clean Avatars**: Users with proper coordinates (no border/background)
+  - **50% Opacity + Dashed Border**: Users needing location updates
 - **No Clustering**: Direct marker placement for smooth map interactions
 - **Performance**: Transform-based positioning for optimal responsiveness
 
 #### AdvancedMarkerElement Implementation ✅ IMPLEMENTED
 ```tsx
-// HTML Content Creation for Pills
+// HTML Content Creation for Avatar-Only Pills
 const createPillContent = (profile: ProfileWithLocation) => {
   const pillDiv = document.createElement('div');
   
-  // Base styling
+  // Base styling - avatar-only container
   pillDiv.className = `
-    inline-flex items-center gap-2 rounded-full border 
-    pr-3 pl-1.5 py-1.5
-    transition-all duration-200 cursor-pointer hover:scale-105 hover:shadow-2xl
+    inline-flex items-center justify-center rounded-full 
+    transition-all duration-300 cursor-pointer hover:scale-105 hover:shadow-2xl
+    ${invitedIds.has(profile.id) ? 'opacity-50' : ''}
+    ${profile.location.needsUpdate ? 'border-dashed border-2 p-1' : ''}
   `;
   
-  // Dynamic styling based on location status
+  // Enhanced shadows (15% stronger)
+  pillDiv.style.boxShadow = '0 10px 25px -3px rgba(0, 0, 0, 0.46), 0 4px 6px -2px rgba(0, 0, 0, 0.23)';
+  
+  // Special styling for profiles needing location updates
   if (profile.location.needsUpdate) {
-    // Users without location: lighter gray with dashed border
-    pillDiv.style.backgroundColor = '#6B7280';
-    pillDiv.style.borderColor = '#9CA3AF';
-    pillDiv.style.borderStyle = 'dashed';
-    pillDiv.style.borderWidth = '2px';
-  } else {
-    // Users with proper location: dark theme
-    pillDiv.style.backgroundColor = '#252422';
-    pillDiv.style.borderColor = '#CCC5B9';
-    pillDiv.style.borderStyle = 'solid';
-    pillDiv.style.borderWidth = '1px';
+    pillDiv.style.backgroundColor = '#6B7280'; // Gray background
+    pillDiv.style.borderColor = '#9CA3AF'; // Light gray dashed border
+    pillDiv.style.opacity = '0.5'; // 50% opacity
   }
   
-  // Enhanced shadows for all pills
-  pillDiv.style.boxShadow = '0 10px 25px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2)';
-  pillDiv.style.color = '#FFFCF2';
+  // Avatar creation
+  const avatarSpan = document.createElement('span');
+  avatarSpan.className = 'relative inline-flex';
   
-  // Avatar + Name content creation...
+  if (profile.avatarUrl) {
+    // User has avatar photo
+    const img = document.createElement('img');
+    img.src = profile.avatarUrl;
+    img.alt = profile.name;
+    img.className = 'h-12 w-12 rounded-full object-cover';
+    avatarSpan.appendChild(img);
+  } else {
+    // Use initials on dark background
+    avatarSpan.className += ' h-12 w-12 rounded-full inline-flex items-center justify-center';
+    avatarSpan.style.backgroundColor = '#252422'; // Dark background
+    avatarSpan.style.color = '#FFFCF2'; // Light text
+    avatarSpan.style.fontSize = '14px';
+    avatarSpan.style.fontWeight = '600';
+    
+    // Generate initials from name
+    const initials = profile.name
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('');
+    
+    avatarSpan.textContent = initials || '?';
+  }
+  
+  pillDiv.appendChild(avatarSpan);
   return pillDiv;
 };
 
@@ -311,6 +330,54 @@ const marker = new AdvancedMarkerElement({
   title: profile.name,
 });
 ```
+
+### TopBar Integration ✅ IMPLEMENTED
+
+#### Transparent TopBar Design
+**Special Explore Page Styling**: The TopBar adapts specifically for the full-screen map experience
+
+**Background Changes:**
+- **Explore Page**: Completely transparent background (no blur, no border)
+- **Other Pages**: Standard semi-transparent background with backdrop blur
+
+**Logo/Text Styling:**
+- **Explore Page**: White/light color (`text-[color:var(--background)]`) for visibility over map
+- **Other Pages**: Standard foreground color
+- **Clickable Navigation**: Logo and "Civic Match" text link back to explore page
+
+**Navigation Button Styling:**
+```typescript
+// Non-active buttons on explore page get white backgrounds
+if (isExplore) {
+  return "bg-[color:var(--background)] text-[color:var(--foreground)] hover:bg-[color:var(--background)]/80";
+}
+// Active button remains orange on all pages
+if (active) {
+  return "bg-[color:var(--accent)] text-[color:var(--background)]";
+}
+```
+
+**Result**: Clean, minimal TopBar that doesn't interfere with map visibility while maintaining full functionality.
+
+### Simplified Filter System ✅ IMPLEMENTED
+
+#### Bottom-Right Star Button
+**Unified Design**: Single star icon button replaces complex filter panels
+
+**Specifications:**
+- **Position**: `fixed bottom-6 right-6` (bottom right corner)
+- **Size**: `h-10 w-10` (matches TopBar button dimensions)
+- **States**: 
+  - **Default**: Light background, empty star icon
+  - **Active**: Orange accent background, filled star icon
+- **Functionality**: Toggle between "show all users" and "show favorites only"
+- **Accessibility**: Tooltip indicates current state and next action
+
+**Benefits:**
+- **Minimal Interface**: No large panels obstructing map view
+- **Consistent UX**: Same button size and styling as TopBar
+- **Universal Position**: Same location on both desktop and mobile
+- **Clear Feedback**: Visual state clearly indicates current filter mode
 
 ### Enhanced Filter Panel
 
@@ -798,27 +865,34 @@ const processProfiles = async () => {
 
 2. **Smart User Visibility System**
    - **ALL users visible**: No one is hidden from the map
-   - **Proper Coordinates**: Users with location data show with dark solid pills
-   - **Random Placement**: Users without location show with light gray dashed pills
+   - **Proper Coordinates**: Users with location data show as clean circular avatars
+   - **Random Placement**: Users without location show with 50% opacity + dashed border
    - **Smart Geocoding**: Legacy string locations successfully resolved to coordinates
 
 3. **Enhanced Visual Design**
-   - **Dark Solid Pills**: Users with accurate location (`#252422` background)
-   - **Light Gray Dashed Pills**: Users needing location updates (`#6B7280` background)
-   - **Enhanced Shadows**: Deep shadows for visibility on dark map
+   - **Clean Avatar-Only Pills**: 48px circular avatars without borders or backgrounds
+   - **Initials Fallback**: Dark background with white initials for users without photos
+   - **Location Update Indicators**: 50% opacity + dashed gray border for profiles needing updates
+   - **Enhanced Shadows**: 15% stronger shadows for better map visibility
    - **Professional Styling**: Consistent with app's design system
 
-4. **Optimized Performance**
+4. **Transparent TopBar Integration**
+   - **No Background**: Completely transparent on explore page for clean map view
+   - **White Navigation Buttons**: Non-active buttons get white backgrounds for visibility
+   - **Clickable Logo**: Logo and "Civic Match" text navigate back to explore
+   - **Adaptive Styling**: Different styling on explore vs other pages
+
+5. **Simplified Filter System**
+   - **Bottom-Right Star Button**: Single icon button replaces complex filter panels
+   - **Universal Design**: Same position and size on desktop and mobile
+   - **Clear States**: Empty star (all users) vs filled star (favorites only)
+   - **Minimal Footprint**: Doesn't obstruct map view
+
+6. **Optimized Performance**
    - **AdvancedMarkerElement**: HTML-based markers for smooth interactions
    - **No Clustering**: Eliminated repositioning lag during map movements
    - **Complete Data Loading**: 500 user limit for comprehensive map view
    - **Geocoding Cache**: Minimizes API calls and improves performance
-
-5. **Mobile-Optimized Interface**
-   - **Full-Screen Experience**: Map fills entire viewport
-   - **Overlay Controls**: Clean filter panels don't interfere with map
-   - **Touch-Friendly**: Optimized for mobile map interactions
-   - **Responsive Design**: Works beautifully on all screen sizes
 
 ### 🎯 **User Experience Achievements**
 

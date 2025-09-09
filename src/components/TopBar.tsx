@@ -3,20 +3,31 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Compass, Mail, UsersRound } from "lucide-react";
+import { ArrowLeft, Compass, Euro, Mail, UsersRound } from "lucide-react";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 
-function pillClasses(active: boolean): string {
+function pillClasses(active: boolean, isExplore: boolean = false): string {
   if (active) return "h-10 w-10 md:w-auto md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm";
+  
+  if (isExplore) {
+    return "h-10 w-10 md:w-auto md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--background)] text-[color:var(--foreground)] hover:bg-[color:var(--background)]/80 gap-2 text-sm";
+  }
+  
   return "h-10 w-10 md:w-auto md:px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm";
 }
 
-function profileClasses(active: boolean): string {
-  return active
-    ? "h-10 w-10 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)]"
-    : "h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30";
+function profileClasses(active: boolean, isExplore: boolean = false): string {
+  if (active) {
+    return "h-10 w-10 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)]";
+  }
+  
+  if (isExplore) {
+    return "h-10 w-10 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--background)] text-[color:var(--foreground)] hover:bg-[color:var(--background)]/80";
+  }
+  
+  return "h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30";
 }
 
 export default function TopBar() {
@@ -235,32 +246,43 @@ export default function TopBar() {
   const isExplore = pathname === "/";
   const isProfiles = pathname === "/profiles" || pathname.startsWith("/profiles/");
   const isMessages = pathname.startsWith("/messages");
+  const isFunding = pathname.startsWith("/funding");
   const isMessageDetail = pathname.startsWith("/messages/");
   const isMyProfile = pathname === "/profile";
 
   return (
-    <div className="sticky top-0 z-40 px-4 md:px-6 lg:px-8 py-2 bg-[color:var(--background)]/95 backdrop-blur border-b flex items-center justify-between">
+    <div className={`sticky top-0 z-40 px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between ${
+      isExplore 
+        ? '' 
+        : 'bg-[color:var(--background)]/95 backdrop-blur border-b'
+    }`}>
       <div className="flex items-center gap-3 min-w-0">
         {isMessageDetail && (
           <Link href="/messages" className="h-9 w-9 md:hidden inline-flex items-center justify-center rounded-full border border-divider" aria-label="Back">
             <ArrowLeft className="size-4" />
           </Link>
         )}
-        <Logo className="size-7 text-[color:var(--foreground)]" />
-        <span className="font-semibold truncate hidden md:inline">Civic Match</span>
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <Logo className={`size-7 ${isExplore ? 'text-[color:var(--background)]' : 'text-[color:var(--foreground)]'}`} />
+          <span className={`font-semibold truncate hidden md:inline ${isExplore ? 'text-[color:var(--background)]' : ''}`}>Civic Match</span>
+        </Link>
       </div>
       <div className="flex items-center gap-2">
-        <Link href="/" className={pillClasses(isExplore)} aria-label="Explore">
+        <Link href="/" className={pillClasses(isExplore, isExplore)} aria-label="Explore">
           <Compass className="size-4" />
           <span className="hidden md:inline">Explore</span>
         </Link>
-        <Link href="/profiles" className={pillClasses(isProfiles)} aria-label="Profiles">
+        <Link href="/profiles" className={pillClasses(isProfiles, isExplore)} aria-label="Profiles">
           <UsersRound className="size-4" />
           <span className="hidden md:inline">Profiles</span>
         </Link>
+        <Link href="/funding" className={pillClasses(isFunding, isExplore)} aria-label="Funding">
+          <Euro className="size-4" />
+          <span className="hidden md:inline">Funding</span>
+        </Link>
         <Link
           href="/messages"
-          className={`${pillClasses(isMessages)} relative`}
+          className={`${pillClasses(isMessages, isExplore)} relative`}
           aria-label="Messages"
           onClick={() => {
             console.log("[TopBar] Messages clicked — clearing dot");
@@ -276,7 +298,7 @@ export default function TopBar() {
           </span>
           <span className="hidden md:inline">Messages</span>
         </Link>
-        <Link href="/profile" className={profileClasses(isMyProfile)} aria-label="Profile">
+        <Link href="/profile" className={profileClasses(isMyProfile, isExplore)} aria-label="Profile">
           <span className={`h-8 w-8 rounded-full overflow-hidden border ${isMyProfile ? "border-[color:var(--background)]/30" : "border-divider"}`}>
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
