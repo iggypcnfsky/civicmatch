@@ -1,28 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { UserRound } from "lucide-react";
+import { UserRound, AlertCircle, MapPin } from "lucide-react";
 import Image from "next/image";
 import { loadGoogleMaps } from "@/lib/google/maps-loader";
+import type { ProfileWithLocation } from "@/types/profile";
 // Note: Using CSS media queries for dark mode instead of next-themes
-
-interface ProfileWithLocation {
-  id: string;
-  name: string;
-  role: string;
-  bio: string;
-  avatarUrl?: string;
-  tags?: string[];
-  location: {
-    coordinates?: { lat: number; lng: number; accuracy: string };
-    displayName?: string;
-    placeId?: string;
-    source?: 'places_autocomplete' | 'geocoded' | 'manual';
-    geocodedAt?: string;
-    raw: string | object; // original location data (legacy)
-    needsUpdate?: boolean; // true for legacy string locations
-  };
-}
 
 interface ExploreMapProps {
   profiles: ProfileWithLocation[];
@@ -130,12 +113,19 @@ export default function ExploreMap({
   // Create pill content as HTML element (avatar only)
   const createPillContent = useCallback((profile: ProfileWithLocation) => {
     const pillDiv = document.createElement('div');
+    
+    // Check profile quality
+    const isIncomplete = profile.qualityInfo ? !profile.qualityInfo.isQualityProfile : false;
+    const needsLocationUpdate = profile.location.needsUpdate;
+    
     pillDiv.className = `
       inline-flex items-center justify-center rounded-full 
-      transition-all duration-300 cursor-pointer hover:scale-105 hover:shadow-2xl
+      transition-all duration-300 hover:scale-105 hover:shadow-2xl
       ${invitedIds.has(profile.id) ? 'opacity-50' : ''}
-      ${profile.location.needsUpdate ? 'border-dashed border-2 p-1' : ''}
+      ${(isIncomplete || needsLocationUpdate) ? 'cursor-default' : 'cursor-pointer'}
     `;
+    
+    // Note: We don't disable pointer events here anymore - we handle clicks in the event listener instead
     
     // Start with invisible for fade-in animation
     pillDiv.style.opacity = '0';
@@ -144,12 +134,7 @@ export default function ExploreMap({
     // Apply styles directly with hex colors
     pillDiv.style.boxShadow = '0 10px 25px -3px rgba(0, 0, 0, 0.46), 0 4px 6px -2px rgba(0, 0, 0, 0.23)'; // 15% stronger shadow
     
-    // Special styling for profiles that need location updates
-    if (profile.location.needsUpdate) {
-      pillDiv.style.backgroundColor = '#6B7280'; // Gray background for visibility
-      pillDiv.style.borderColor = '#9CA3AF'; // Light gray dashed border
-      pillDiv.style.opacity = '0.5'; // 50% opacity as requested
-    }
+    // Note: Don't set opacity here - let the animation handle it for staggered effect
 
     // Avatar only
     const avatarSpan = document.createElement('span');
@@ -179,7 +164,21 @@ export default function ExploreMap({
       avatarSpan.textContent = initials || '?';
     }
 
-    // Add hover event listeners
+    // Add emergency indicator for both incomplete profiles and location updates
+    if (isIncomplete || needsLocationUpdate) {
+      const indicator = document.createElement('div');
+      indicator.className = 'absolute -top-1 -right-1 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center';
+      indicator.style.width = '16px';
+      indicator.style.height = '16px';
+      indicator.style.fontSize = '10px';
+      indicator.style.fontWeight = 'bold';
+      indicator.style.opacity = '0.8'; // Increased opacity to 80% for better visibility
+      indicator.textContent = '!';
+      indicator.title = needsLocationUpdate ? 'Location needs update' : 'Incomplete Profile';
+      avatarSpan.appendChild(indicator);
+    }
+
+    // Add hover event listeners (for all profiles to show information)
     pillDiv.addEventListener('mouseenter', () => {
       const rect = pillDiv.getBoundingClientRect();
       setHoverPosition({ 
@@ -345,8 +344,17 @@ export default function ExploreMap({
               title: profile.name,
             });
 
-            // Add click handler
+            // Add click handler (only for complete quality profiles)
             marker.addListener('click', () => {
+              const isIncomplete = profile.qualityInfo ? !profile.qualityInfo.isQualityProfile : false;
+              const needsLocationUpdate = profile.location.needsUpdate;
+              
+              // Prevent clicks on incomplete profiles or those needing location updates
+              if (isIncomplete || needsLocationUpdate) {
+                console.log('Cannot interact with incomplete/location-update profile:', profile.name);
+                return;
+              }
+              
               if (onProfileClick) {
                 onProfileClick(profile);
               } else {
@@ -359,9 +367,20 @@ export default function ExploreMap({
             // Animate pill in with center-based delay (faster for center users)
             // Users closer to center animate faster, creating a ripple effect
             const delay = markerIndex * 30; // Reduced to 30ms for faster animation
+            
+            // Determine final opacity based on profile quality and location status
+            const isIncomplete = profile.qualityInfo ? !profile.qualityInfo.isQualityProfile : false;
+            const needsLocationUpdate = profile.location.needsUpdate;
+            let finalOpacity = '1';
+            
+            // Unified opacity for both incomplete profiles and location updates
+            if (isIncomplete || needsLocationUpdate) {
+              finalOpacity = '0.2'; // 20% opacity for both cases
+            }
+            
             setTimeout(() => {
               if (marker.content instanceof HTMLElement) {
-                marker.content.style.opacity = '1';
+                marker.content.style.opacity = finalOpacity;
                 marker.content.style.transform = 'scale(1)';
               }
             }, delay);
@@ -461,13 +480,32 @@ export default function ExploreMap({
               </div>
             )}
             
-            {/* Location status indicator */}
-            {hoveredProfile.location.needsUpdate && (
-              <div className="mt-2 text-xs text-amber-500 flex items-center justify-center gap-1">
-                <span className="w-2 h-2 border border-dashed border-amber-500 rounded-full"></span>
-                Needs location update
-              </div>
-            )}
+            {/* Quality and Location status indicators */}
+            <div className="mt-2 space-y-1">
+              {/* Profile completion status */}
+              {hoveredProfile.qualityInfo && !hoveredProfile.qualityInfo.isQualityProfile && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1">
+                  <AlertCircle className="size-3" />
+                  <span>Incomplete Profile</span>
+                </div>
+              )}
+              
+              {/* Location status */}
+              {hoveredProfile.location.needsUpdate && (
+                <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center justify-center gap-1">
+                  <MapPin className="size-3" />
+                  <span>Location needs update</span>
+                </div>
+              )}
+              
+              {/* Quality profile indicator */}
+              {hoveredProfile.qualityInfo && hoveredProfile.qualityInfo.isQualityProfile && !hoveredProfile.location.needsUpdate && (
+                <div className="text-xs text-green-600 dark:text-green-400 flex items-center justify-center gap-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Quality Profile
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

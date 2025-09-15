@@ -4,7 +4,8 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Star, UserRound } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { ProfileQualityService } from "@/lib/services/ProfileQualityService";
 
 type AimItem = { title: string; summary: string };
 
@@ -33,6 +34,7 @@ function ProfilePageInner() {
   const [animateIn, setAnimateIn] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const params = useParams();
+  const router = useRouter();
   const userId = params.userId as string;
 
   // Safe parsers for JSONB payloads
@@ -89,7 +91,7 @@ function ProfilePageInner() {
     );
   };
 
-  // Load the specific profile
+  // Load the specific profile - only allow quality profiles
   useEffect(() => {
     (async () => {
       if (!isAuthenticated || !userId) return;
@@ -100,6 +102,17 @@ function ProfilePageInner() {
         .maybeSingle();
       if (!error && data) {
         const row = data as { user_id: string; username: string; data: Record<string, unknown> };
+        
+        // Check if this profile meets quality standards
+        const isQualityProfile = ProfileQualityService.isQualityProfile(row.data);
+        
+        if (!isQualityProfile) {
+          // If the profile is incomplete, redirect to profile browser
+          console.log('Individual profile page accessed for incomplete profile, redirecting');
+          router.replace('/profiles');
+          return;
+        }
+        
         setTargetUserId(row.user_id);
         const d = (row.data || {}) as Record<string, unknown>;
         const name = asString(d.displayName) || row.username || "Member";
@@ -128,7 +141,7 @@ function ProfilePageInner() {
         requestAnimationFrame(() => setAnimateIn(true));
       }
     })();
-  }, [isAuthenticated, userId, locationLabel]);
+  }, [isAuthenticated, userId, locationLabel, router]);
 
   if (isAuthenticated === false || isAuthenticated === null) {
     return null;

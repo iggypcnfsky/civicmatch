@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Send, XCircle, Star, UserRound } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ProfileQualityService } from "@/lib/services/ProfileQualityService";
 
 type AimItem = { title: string; summary: string };
 
@@ -25,20 +26,24 @@ type ViewProfile = {
 };
 
 function ProfilesPageInner() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const isAuthenticated = status === "authenticated" ? true : status === "unauthenticated" ? false : null;
   const [message, setMessage] = useState("");
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [profile, setProfile] = useState<ViewProfile | null>(null);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   const [animateIn, setAnimateIn] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const params = useSearchParams();
   const router = useRouter();
-  const invitePlaceholder = "Hi! I’m impressed by your work on … Would you be open to a quick chat about collaborating on civic tech? I can help with …";
+  const invitePlaceholder = "Hi! I'm impressed by your work on … Would you be open to a quick chat about collaborating on civic tech? I can help with …";
+
+  // Debouncing ref to prevent multiple rapid profile loads
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoadedProfileRef = useRef<string | null>(null);
 
   // auth is provided by context
 
@@ -96,15 +101,62 @@ function ProfilesPageInner() {
     );
   };
 
+  // Debounced profile loading function to prevent multiple rapid loads
+  const loadProfileWithDebounce = useCallback((profileData: ViewProfile, userId: string, skipAnimation = false) => {
+    // Clear any pending timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+
+    // Prevent loading the same profile multiple times
+    if (lastLoadedProfileRef.current === userId) {
+      return;
+    }
+
+    setIsLoadingProfile(true);
+    
+    loadingTimeoutRef.current = setTimeout(() => {
+      lastLoadedProfileRef.current = userId;
+      setTargetUserId(userId);
+      setProfile(profileData);
+      
+      // Handle favorites
+      try {
+        const raw = localStorage.getItem("civicmatch.favorites");
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        setIsFavorite(arr.includes(userId));
+      } catch { 
+        setIsFavorite(false); 
+      }
+
+      // Handle animation
+      if (!skipAnimation) {
+        setAnimateIn(false);
+        requestAnimationFrame(() => {
+          setAnimateIn(true);
+          setIsLoadingProfile(false);
+        });
+      } else {
+        setIsLoadingProfile(false);
+      }
+    }, 150); // 150ms debounce delay
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Load invited (pending) connections for current user to avoid showing already-invited profiles
   useEffect(() => {
 
     (async () => {
-      if (!isAuthenticated) return;
-      const { data: u } = await supabase.auth.getUser();
-      const me = u?.user?.id;
-      setCurrentUserId(me || null);
-      if (!me) return;
+      if (!isAuthenticated || !user?.id) return;
+      const me = user.id;
       const { data } = await supabase
         .from("connections")
         .select("addressee_id")
@@ -112,14 +164,20 @@ function ProfilesPageInner() {
         .eq("status", "pending");
       setInvitedIds(new Set<string>((data || []).map((r: { addressee_id: string }) => r.addressee_id)));
     })();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
-  // Load a specific profile if ?user=<id> is present (prevents duplicate fetches)
+  // Load a specific profile if ?user=<id> is present - check if it's a quality profile
   useEffect(() => {
     (async () => {
       if (!isAuthenticated) return;
       const id = params.get("user");
       if (!id) return;
+
+      // Prevent loading if already loading this profile
+      if (isLoadingProfile && lastLoadedProfileRef.current === id) {
+        return;
+      }
+
       const { data, error } = await supabase
         .from("profiles")
         .select("user_id, username, data")
@@ -127,91 +185,166 @@ function ProfilesPageInner() {
         .maybeSingle();
       if (!error && data) {
         const row = data as { user_id: string; username: string; data: Record<string, unknown> };
-        setTargetUserId(row.user_id);
+        
+        // Check if this profile meets quality standards
+        const isQualityProfile = ProfileQualityService.isQualityProfile(row.data);
+        
+        if (!isQualityProfile) {
+          // If the requested profile is incomplete, redirect to random quality profile selection
+          console.log('Requested profile is incomplete, redirecting to random quality profile');
+          router.replace('/profiles');
+          return;
+        }
+        
+        // Build profile data
         const d = (row.data || {}) as Record<string, unknown>;
-        const name = asString(d.displayName) || row.username || "Member";
-        const location = locationLabel(d.location);
-        const tags = toStringArray(d.tags);
-        const bio = asString(d.bio) || "";
-        const links = toLinksArray(d.links);
-        const skills = toStringArray(d.skills);
-        const fame = asString(d.fame) || "";
-        const aim: AimItem[] = Array.isArray(d.aim) ? (d.aim as AimItem[]) : [];
-        const game = asString(d.game) || "";
-        const portfolio: string[] = Array.isArray(d.portfolio)
-          ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
-          : [];
-        const avatarUrl = asString(d.avatarUrl);
-        const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
-        const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
-        setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
-        try {
-          const raw = localStorage.getItem("civicmatch.favorites");
-          const arr: string[] = raw ? JSON.parse(raw) : [];
-          setIsFavorite(arr.includes(row.user_id));
-        } catch { setIsFavorite(false); }
-        // Animate entire panel together as soon as profile is ready
-        setAnimateIn(false);
-        requestAnimationFrame(() => setAnimateIn(true));
+        const profileData: ViewProfile = {
+          name: asString(d.displayName) || row.username || "Member",
+          location: locationLabel(d.location),
+          tags: toStringArray(d.tags),
+          bio: asString(d.bio) || "",
+          links: toLinksArray(d.links),
+          skills: toStringArray(d.skills),
+          fame: asString(d.fame) || "",
+          aim: Array.isArray(d.aim) ? (d.aim as AimItem[]) : [],
+          game: asString(d.game) || "",
+          portfolio: Array.isArray(d.portfolio)
+            ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
+            : [],
+          avatarUrl: asString(d.avatarUrl),
+          workStyle: asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style),
+          helpNeeded: asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed)
+        };
+
+        // Use debounced loading
+        loadProfileWithDebounce(profileData, row.user_id);
       }
     })();
-  }, [isAuthenticated, params, locationLabel]);
+  }, [isAuthenticated, params, locationLabel, router, loadProfileWithDebounce, isLoadingProfile]);
 
-  // Fallback random profile when there is no ?user param
+  // Fallback random profile when there is no ?user param - only show quality profiles (≥50% complete)
+  // Only depend on essential state that should trigger a new profile load
   useEffect(() => {
     (async () => {
       if (!isAuthenticated) return;
       const id = params.get("user");
       if (id) return; // handled by the specific-profile effect
-      const { count } = await supabase.from("profiles").select("*", { count: "exact", head: true });
-      if (!count || count <= 0) return;
-      let attempt = 0;
-      let chosen: { user_id: string; username: string; data: Record<string, unknown> } | null = null;
-      while (attempt < 10 && !chosen) {
-        const randomOffset = Math.floor(Math.random() * count);
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("user_id, username, data")
-          .range(randomOffset, randomOffset);
-        if (!error && data && data.length > 0) {
-          const row = data[0] as { user_id: string; username: string; data: Record<string, unknown> };
-          const isInvited = invitedIds.has(row.user_id);
-          const isSelf = currentUserId && row.user_id === currentUserId;
-          if (!isInvited && !isSelf) chosen = row;
-        }
-        attempt += 1;
+      
+      // Skip if we're already loading or have a profile and no refresh param
+      const refreshParam = params.get("refresh");
+      if (isLoadingProfile || (profile && !refreshParam)) {
+        return;
       }
-      if (!chosen) return;
-      setTargetUserId(chosen.user_id);
+      
+      // Fetch a reasonable batch of profiles to filter from
+      const { data: allProfiles, error } = await supabase
+        .from("profiles")
+        .select("user_id, username, data")
+        .limit(200); // Get a larger batch to ensure we have quality profiles to choose from
+      
+      if (error || !allProfiles || allProfiles.length === 0) return;
+      
+      // Filter to only quality profiles (≥50% complete)
+      const qualityProfiles = ProfileQualityService.filterQualityProfiles(
+        allProfiles.map(p => ({ 
+          user_id: p.user_id, 
+          username: p.username || '', 
+          data: p.data as Record<string, unknown> 
+        }))
+      );
+      
+      if (qualityProfiles.length === 0) return; // No quality profiles available
+      
+      // Filter out invited profiles and self
+      const availableProfiles = qualityProfiles.filter(row => {
+        const isInvited = invitedIds.has(row.user_id);
+        const isSelf = user?.id && row.user_id === user.id;
+        return !isInvited && !isSelf;
+      });
+      
+      if (availableProfiles.length === 0) return; // No available quality profiles
+      
+      // Select random quality profile
+      const randomIndex = Math.floor(Math.random() * availableProfiles.length);
+      const chosen = availableProfiles[randomIndex];
+      
+      // Build profile data
       const d = (chosen.data || {}) as Record<string, unknown>;
-      const name = asString(d.displayName) || chosen.username || "Member";
-      const location = locationLabel(d.location);
-      const tags = toStringArray(d.tags);
-      const bio = asString(d.bio) || "";
-      const links = toLinksArray(d.links);
-      const skills = toStringArray(d.skills);
-      const fame = asString(d.fame) || "";
-      const aim: AimItem[] = Array.isArray(d.aim) ? (d.aim as AimItem[]) : [];
-      const game = asString(d.game) || "";
-      const portfolio: string[] = Array.isArray(d.portfolio)
-        ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
-        : [];
-      const avatarUrl = asString(d.avatarUrl);
-      const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
-      const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
-      setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
-      try {
-        const raw = localStorage.getItem("civicmatch.favorites");
-        const arr: string[] = raw ? JSON.parse(raw) : [];
-        setIsFavorite(arr.includes(chosen.user_id));
-      } catch { setIsFavorite(false); }
-      // Animate entire panel together as soon as profile is ready
-      setAnimateIn(false);
-      requestAnimationFrame(() => setAnimateIn(true));
-    })();
-  }, [isAuthenticated, invitedIds, currentUserId, params, locationLabel]);
+      const profileData: ViewProfile = {
+        name: asString(d.displayName) || chosen.username || "Member",
+        location: locationLabel(d.location),
+        tags: toStringArray(d.tags),
+        bio: asString(d.bio) || "",
+        links: toLinksArray(d.links),
+        skills: toStringArray(d.skills),
+        fame: asString(d.fame) || "",
+        aim: Array.isArray(d.aim) ? (d.aim as AimItem[]) : [],
+        game: asString(d.game) || "",
+        portfolio: Array.isArray(d.portfolio)
+          ? (d.portfolio as unknown[]).filter((x): x is string => typeof x === "string")
+          : [],
+        avatarUrl: asString(d.avatarUrl),
+        workStyle: asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style),
+        helpNeeded: asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed)
+      };
 
-  if (isAuthenticated === false || isAuthenticated === null) {
+      // Use debounced loading
+      loadProfileWithDebounce(profileData, chosen.user_id);
+    })();
+  }, [isAuthenticated, params, loadProfileWithDebounce, isLoadingProfile, profile, invitedIds, user, locationLabel]);
+
+  // Show loading state while authentication is resolving
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-dvh p-4 md:p-6 lg:p-8 pb-52 lg:pb-0">
+        <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
+          <section className="space-y-4">
+            <div className="card p-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-[color:var(--muted)]/40"></div>
+                <div className="flex-1 min-w-0">
+                  <div className="h-5 bg-[color:var(--muted)]/40 rounded-full w-3/4 mb-2"></div>
+                  <div className="h-4 bg-[color:var(--muted)]/30 rounded-full w-1/2"></div>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="card p-4 animate-pulse min-h-[200px]">
+                  <div className="h-4 bg-[color:var(--muted)]/40 rounded-full w-1/2 mb-3"></div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-[color:var(--muted)]/30 rounded-full w-full"></div>
+                    <div className="h-3 bg-[color:var(--muted)]/30 rounded-full w-3/4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+          <aside className="hidden lg:block sticky top-20 h-[calc((100dvh-5rem)/2)]">
+            <div className="card space-y-3 rounded-2xl h-full flex flex-col animate-pulse">
+              <div className="h-5 bg-[color:var(--muted)]/40 rounded-full w-1/2"></div>
+              <div className="flex-1 bg-[color:var(--muted)]/20 rounded-2xl"></div>
+              <div className="flex gap-2">
+                <div className="h-10 bg-[color:var(--muted)]/30 rounded-full flex-1"></div>
+                <div className="h-10 bg-[color:var(--muted)]/40 rounded-full flex-1"></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+        
+        {/* Mobile composer skeleton */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t animate-pulse">
+          <div className="w-full h-20 bg-[color:var(--muted)]/20 rounded-lg mb-2"></div>
+          <div className="flex gap-2">
+            <div className="h-10 bg-[color:var(--muted)]/30 rounded-full flex-1"></div>
+            <div className="h-10 bg-[color:var(--muted)]/40 rounded-full flex-1"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated === false) {
     return null;
   }
 
@@ -219,8 +352,7 @@ function ProfilesPageInner() {
     if (!message.trim()) return;
     try {
       setIsSending(true);
-      const { data: u } = await supabase.auth.getUser();
-      const me = u?.user?.id ?? null;
+      const me = user?.id ?? null;
       if (!me || !targetUserId) {
         alert("Please sign in to send invites.");
         return;
@@ -289,8 +421,18 @@ function ProfilesPageInner() {
   }
 
   function skipProfile() {
+    // Clear any pending loading timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    
+    // Reset state
     setProfile(null);
     setTargetUserId(null);
+    setIsLoadingProfile(false);
+    setAnimateIn(false);
+    lastLoadedProfileRef.current = null;
+    
     // Force a params change to retrigger the loader effect
     router.replace(`/profiles?refresh=${Date.now()}`);
   }
@@ -301,10 +443,23 @@ function ProfilesPageInner() {
       <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
         {/* Left: profile sections */}
         <section className="space-y-4">
+          {/* Loading State */}
+          {isLoadingProfile && (
+            <div className="card p-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-[color:var(--muted)]/40"></div>
+                <div className="flex-1 min-w-0">
+                  <div className="h-5 bg-[color:var(--muted)]/40 rounded-full w-3/4 mb-2"></div>
+                  <div className="h-4 bg-[color:var(--muted)]/30 rounded-full w-1/2"></div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Profile Pill + Basic info */}
           <div className="grid gap-4">
             {/* Profile Pill */}
-            <div className={`card p-4 transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
+            <div className={`card p-4 transition-all duration-600 ease-out ${animateIn && !isLoadingProfile ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
               <div className="flex items-center gap-3">
                 <span className="relative inline-flex">
                   {profile?.avatarUrl ? (
@@ -392,7 +547,8 @@ function ProfilesPageInner() {
             </div>
           </div>
 
-          {/* Profile sections - only show if they have data */}
+          {/* Profile sections - only show if they have data and not loading */}
+          {!isLoadingProfile && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
             {(() => {
               const sections = [];
@@ -467,6 +623,7 @@ function ProfilesPageInner() {
               return sections;
             })()}
           </div>
+          )}
         </section>
 
         {/* Right: sticky composer */}
@@ -483,6 +640,7 @@ function ProfilesPageInner() {
               <button
                 className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
                 onClick={skipProfile}
+                disabled={isLoadingProfile}
               >
                 <XCircle className="size-4" />
                 <span className="hidden md:inline">Skip profile</span>
@@ -490,7 +648,7 @@ function ProfilesPageInner() {
               <button
                 className="h-10 md:px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm ml-auto"
                 onClick={sendInvite}
-                disabled={isSending}
+                disabled={isSending || isLoadingProfile}
               >
                 <Send className="size-4" />
                 <span className="hidden md:inline">Invite to connect</span>
@@ -513,13 +671,14 @@ function ProfilesPageInner() {
           <button
             className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 gap-2 text-sm"
             onClick={skipProfile}
+            disabled={isLoadingProfile}
           >
             <XCircle className="size-4" /> Skip profile
           </button>
           <button
             className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] gap-2 text-sm"
             onClick={sendInvite}
-            disabled={isSending}
+            disabled={isSending || isLoadingProfile}
           >
             <Send className="size-4" /> Invite
           </button>

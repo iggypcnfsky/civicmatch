@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { AuthProvider } from "@/components/AuthProvider";
 import "./globals.css";
 import TopBar from "@/components/TopBar";
+import IncompleteProfileBanner from "@/components/IncompleteProfileBanner";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const dmSans = DM_Sans({
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className={`${dmSans.variable} antialiased bg-background text-foreground`}>
         <AuthProvider>
           <div className="min-h-dvh">
+            <IncompleteProfileBanner />
             <TopBar />
             <div className="pb-0">{children}</div>
           </div>

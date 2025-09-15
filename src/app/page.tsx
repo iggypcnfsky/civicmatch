@@ -6,27 +6,8 @@ import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import ExploreMap from "@/components/ExploreMap";
-
-interface Profile {
-  id: string;
-  name: string;
-  role: string;
-  bio: string;
-  avatarUrl?: string;
-  tags?: string[];
-}
-
-interface ProfileWithLocation extends Profile {
-  location: {
-    coordinates?: { lat: number; lng: number; accuracy: string };
-    displayName?: string;
-    placeId?: string;
-    source?: 'places_autocomplete' | 'geocoded' | 'manual';
-    geocodedAt?: string;
-    raw: string | object; // original location data (legacy)
-    needsUpdate?: boolean; // true for legacy string locations
-  };
-}
+import { ProfileQualityService } from "@/lib/services/ProfileQualityService";
+import type { ProfileWithLocation, ProfileRow } from "@/types/profile";
 
 const PAGE_SIZE = 24;
 
@@ -114,7 +95,6 @@ export default function ExplorePage() {
   }, [isAuthenticated]);
 
 
-  type ProfileRow = { user_id: string; username: string | null; data: unknown; created_at: string };
 
   const asString = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
   const asStringArray = (v: unknown): string[] => {
@@ -162,7 +142,10 @@ export default function ExplorePage() {
       };
     }
     
-    return { id: row.user_id, name, role, bio, avatarUrl, tags, location };
+    // Calculate quality information
+    const qualityInfo = ProfileQualityService.calculateQualityInfo(row.user_id, d);
+    
+    return { id: row.user_id, name, role, bio, avatarUrl, tags, location, qualityInfo };
   }
 
   async function fetchNextPage() {
