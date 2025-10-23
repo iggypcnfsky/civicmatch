@@ -243,7 +243,7 @@ export default function TopBar() {
   }, [pathname]);
 
   if (!isAuthed) return null;
-  const isExplore = pathname === "/";
+  const isExplore = pathname === "/explore";
   const isProfiles = pathname === "/profiles" || pathname.startsWith("/profiles/");
   const isMessages = pathname.startsWith("/messages");
   const isFunding = pathname.startsWith("/funding");
@@ -262,13 +262,13 @@ export default function TopBar() {
             <ArrowLeft className="size-4" />
           </Link>
         )}
-        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity" aria-label="Home">
           <Logo className={`size-7 ${isExplore ? 'text-[color:var(--background)]' : 'text-[color:var(--foreground)]'}`} />
           <span className={`font-semibold truncate hidden md:inline ${isExplore ? 'text-[color:var(--background)]' : ''}`}>Civic Match</span>
         </Link>
       </div>
       <div className="flex items-center gap-2">
-        <Link href="/" className={pillClasses(isExplore, isExplore)} aria-label="Explore">
+        <Link href="/explore" className={pillClasses(isExplore, isExplore)} aria-label="Explore">
           <Compass className="size-4" />
           <span className="hidden md:inline">Explore</span>
         </Link>
