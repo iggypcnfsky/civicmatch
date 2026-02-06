@@ -181,6 +181,97 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          id: string
+          slug: string
+          created_at: string
+          updated_at: string
+          data: Json
+        }
+        Insert: {
+          id?: string
+          slug: string
+          created_at?: string
+          updated_at?: string
+          data?: Json
+        }
+        Update: {
+          id?: string
+          slug?: string
+          created_at?: string
+          updated_at?: string
+          data?: Json
+        }
+        Relationships: []
+      }
+      project_members: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string
+          role: string
+          created_at: string
+          data: Json
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          user_id: string
+          role?: string
+          created_at?: string
+          data?: Json
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          user_id?: string
+          role?: string
+          created_at?: string
+          data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_completions: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string
+          completed_at: string
+          data: Json
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          user_id: string
+          completed_at?: string
+          data?: Json
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          user_id?: string
+          completed_at?: string
+          data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_completions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

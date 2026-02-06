@@ -7,16 +7,21 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "email:dev": "email dev --dir src/lib/email/templates --port 3001"
+    "email:dev": "email dev --dir src/lib/email/templates --port 3001",
+    "ingest": "tsx scripts/ingest-challenges.ts"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.10",
     "@react-email/components": "^0.5.0",
+    "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.45.4",
+    "@types/qrcode": "^1.5.5",
     "@vercel/analytics": "^1.5.0",
+    "cheerio": "^1.2.0",
     "googleapis": "^156.0.0",
     "lucide-react": "^0.447.0",
     "next": "15.4.6",
+    "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "resend": "^4.0.1"
@@ -30,10 +35,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.2.4",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
     "react-email": "^4.2.8",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

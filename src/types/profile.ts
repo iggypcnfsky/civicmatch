@@ -27,6 +27,17 @@ export interface ProfileWithQuality extends BaseProfile {
   qualityInfo: ProfileQualityInfo;
 }
 
+export interface AimItem {
+  title: string;
+  summary: string;
+}
+
+export interface CustomSection {
+  id: string;
+  title: string;
+  content: string;
+}
+
 export interface ProfileWithLocation extends ProfileWithQuality {
   location: {
     coordinates?: { lat: number; lng: number; accuracy: string };
@@ -37,6 +48,18 @@ export interface ProfileWithLocation extends ProfileWithQuality {
     raw: string | object; // original location data (legacy)
     needsUpdate?: boolean; // true for legacy string locations
   };
+  // Extended profile fields
+  email?: string;
+  links?: string[];
+  skills?: string[];
+  fame?: string;
+  aim?: AimItem[];
+  game?: string;
+  portfolio?: string[];
+  customSections?: CustomSection[];
+  workStyle?: string;
+  helpNeeded?: string;
+  xp?: number;
 }
 
 // Database row interface for type safety

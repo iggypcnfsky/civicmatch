@@ -71,9 +71,10 @@ export default function IncompleteProfileBanner() {
     setIsDismissed(true);
   };
 
-  // Handle click to profile page
+  // Handle click to complete profile - disabled since profile page is removed
   const handleCompleteProfile = () => {
-    router.push('/profile');
+    // Profile page removed - profile viewing/editing now done in sidebar
+    // TODO: Implement alternative profile completion flow
   };
 
   // Don't show banner if:
@@ -102,8 +103,10 @@ export default function IncompleteProfileBanner() {
         {/* Right: Action buttons - aligned with user avatar */}
         <div className="flex items-center gap-3 flex-shrink-0">
           <button
+            disabled
             onClick={handleCompleteProfile}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[color:var(--accent)] hover:bg-[color:var(--accent)]/90 text-[color:var(--background)] text-sm font-medium rounded-full transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[color:var(--muted)] text-[color:var(--foreground)]/50 text-sm font-medium rounded-full transition-colors whitespace-nowrap cursor-not-allowed"
+            title="Profile editing temporarily unavailable"
           >
             Complete Profile
             <ArrowRight className="size-4" />

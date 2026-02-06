@@ -119,6 +119,22 @@ RESEND_FROM_EMAIL=noreply@yourdomain.com
 RESEND_AUDIENCE_ID=audienceID
 EMAIL_ENABLED=true
 EMAIL_TEST_MODE=false
+
+# Event Discovery (optional - enables automated event discovery)
+BRAVE_SEARCH_API_KEY=your_brave_search_api_key
+NEWSAPI_AI_KEY=your_newsapi_key
+OPENROUTER_API_KEY=your_openrouter_key
+NOMINATIM_USER_AGENT=CivicMatch/1.0 (contact@yourdomain.com)
+
+# EventsEye Configuration (optional)
+EVENTSEYE_USER_AGENT=CivicMatchBot/1.0 (contact@yourdomain.com)
+EVENTSEYE_DELAY_MS=2000
+EVENTSEYE_MAX_PAGES=30
+EVENTSEYE_BATCH_SIZE=40
+EVENTSEYE_MIN_RELEVANCE=55
+
+# Cron (for automated ingestion)
+CRON_SECRET=your_cron_secret
 ```
 
 Supabase setup (summary — see `ARCHITECTURE.md` for full details):
@@ -136,13 +152,63 @@ Supabase setup (summary — see `ARCHITECTURE.md` for full details):
 - `/messages` — Conversations list + active thread (desktop split)
 - `/messages/[id]` — Full‑screen chat (mobile)
 - `/profile` — Edit your profile
+- `/events` — Events page (user-submitted + AI-discovered civic tech events)
+
+## Events Module (Automated Discovery)
+
+The Events page includes an automated discovery system that finds civic tech events from across the web:
+
+- **Brave Search API** (Source B): Discovers events from Eventbrite, Luma, Meetup, and conference websites
+- **NewsAPI.ai** (Source A): Finds event announcements in news coverage
+- **EventsEye** (Source C): Scrapes global trade show directory for major civic tech conferences
+- **AI Extraction**: Uses OpenRouter AI to extract structured event data and filter for relevance
+- **Geocoding**: Nominatim (OpenStreetMap) for location coordinates
+
+### Cost Overview
+
+| Service | Usage | Cost |
+|---------|-------|------|
+| Brave Search API | ~370 queries/month | Free (2,000 limit) |
+| NewsAPI.ai | ~600 articles/month | Free (2,000 limit) |
+| EventsEye Scraping | ~540 requests/month | Free (HTTP) |
+| OpenRouter AI | ~8,000 calls/month | ~$1.70 |
+| Nominatim | ~300 requests/month | Free |
+| **Total** | | **~$1.70/month** |
+
+### Source C: EventsEye Integration
+
+EventsEye (eventseye.com) is a comprehensive global directory of trade shows and conferences. The integration:
+
+- Scrapes 9 relevant categories (Environmental, ICT, Smart Cities, etc.)
+- Uses AI filtering to identify civic-relevant events (smart cities, govtech, climate, etc.)
+- Discovers major conferences like Smart City Expo, COP, World Urban Forum
+- Runs weekly (Sundays at 3 AM UTC) - trade show data changes slowly
+
+**Categories monitored:**
+- Environmental (primary)
+- ICT / Information Communications Technologies (primary)
+- Education / Training / Employment (primary)
+- Quality / Security (primary)
+- Urban Equipment & Engineering (subcategory)
+- Clean Energies & Renewable Energies (subcategory)
+- Environmental Protection (subcategory)
+- Water Management & Treatment (subcategory)
+- Knowledge Based Systems & AI (subcategory)
+
+### Cron Configuration
+
+Set up in Vercel or your hosting platform:
+- **Event Discovery (Daily)**: `0 2 * * *` (daily at 2 AM UTC) - Brave Search + NewsAPI.ai
+- **Event Discovery (Weekly)**: `0 3 * * 0` (Sundays at 3 AM UTC) - EventsEye
+- **Challenge Ingestion**: `0 */6 * * *` (every 6 hours)
 
 ## Roadmap (phased)
 
 1. Foundation: auth, profile CRUD, design system polish, dark mode
 2. Search & matching: filters and rule‑based scoring
 3. Connections & messaging: request/accept; realtime conversations
-4. Polish: notifications, moderation, telemetry, accessibility
+4. Events & challenges: automated discovery, map integration
+5. Polish: notifications, moderation, telemetry, accessibility
 
 ## Contributing
 

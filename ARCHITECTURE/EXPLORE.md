@@ -20,7 +20,7 @@ Transform the Explore page from a simple pill list to an interactive Google Maps
 - Enhanced visual distinction for users needing location updates
 
 ### User Experience Goals
-- **Geographic Discovery**: "Who's building impact projects near me?"
+- **Geographic Discovery**: "Who's building impact near me?"
 - **Global Perspective**: Visual representation of the worldwide changemaker community
 - **Contextual Connections**: Location context enhances collaboration potential
 - **Intuitive Navigation**: Map interactions feel natural and responsive
@@ -896,7 +896,7 @@ const processProfiles = async () => {
 
 ### 🎯 **User Experience Achievements**
 
-- **Geographic Discovery**: Users can explore "Who's building impact projects near me?"
+- **Geographic Discovery**: Users can explore "Who's building impact near me?"
 - **Global Perspective**: Visual representation of worldwide changemaker community
 - **Complete Visibility**: Every user appears on the map with appropriate visual distinction
 - **Intuitive Interaction**: Smooth map movements without UI lag or repositioning

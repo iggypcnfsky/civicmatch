@@ -1,0 +1,156 @@
+/**
+ * Profile Components Styles
+ * 
+ * Styles for the profile page components: XP meter, badges, activity timeline
+ */
+
+/* ==========================================================================
+   XP Progress Bar
+   ========================================================================== */
+.xp-progress-bar {
+  height: 0.75rem;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+.xp-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 1s ease-out;
+  background: linear-gradient(90deg, var(--accent), #f97316);
+}
+
+/* ==========================================================================
+   Badge Styles
+   ========================================================================== */
+.badge-glow {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ==========================================================================
+   Activity Timeline
+   ========================================================================== */
+.activity-timeline-line {
+  position: absolute;
+  width: 1px;
+  background: var(--divider);
+}
+
+.activity-icon {
+  position: relative;
+  z-index: 10;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Card Interactions
+   ========================================================================== */
+.card-interactive {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+/* ==========================================================================
+   Avatar Styles
+   ========================================================================== */
+.avatar-ring {
+  box-shadow: 
+    0 0 0 4px var(--background),
+    0 4px 12px color-mix(in srgb, var(--foreground) 15%, transparent);
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+@keyframes countUp {
+  from { 
+    opacity: 0; 
+    transform: scale(0.8); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+.stat-count {
+  animation: countUp 400ms ease-out;
+}
+
+@keyframes fadeInRight {
+  from { 
+    opacity: 0; 
+    transform: translateX(-8px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+.fade-in-right {
+  animation: fadeInRight 300ms ease-out;
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+.scale-in {
+  animation: scaleIn 200ms ease-out;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Staggered animation delays for timeline items */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+
+/* ==========================================================================
+   Scrollbar (Profile Sidebar)
+   ========================================================================== */
+.profile-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.profile-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.profile-sidebar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  border-radius: 3px;
+}
+
+.profile-sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}

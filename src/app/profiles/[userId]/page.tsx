@@ -1,11 +1,21 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { Lightbulb, Wrench, Link as LinkIcon, Heart, Sparkles, Star, UserRound } from "lucide-react";
+import { 
+  Lightbulb, 
+  Wrench, 
+  Link as LinkIcon, 
+  Heart, 
+  Sparkles, 
+  Star, 
+  UserRound,
+  MapPin,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import { useParams, useRouter } from "next/navigation";
 import { ProfileQualityService } from "@/lib/services/ProfileQualityService";
+import { ActivityTimeline, UpcomingEvents } from "@/components/profile";
 
 type AimItem = { title: string; summary: string };
 
@@ -23,6 +33,7 @@ type ViewProfile = {
   avatarUrl?: string;
   workStyle?: string;
   helpNeeded?: string;
+  xp?: number;
 };
 
 function ProfilePageInner() {
@@ -56,7 +67,8 @@ function ProfilePageInner() {
   const locationLabel = useCallback((v: unknown): string => {
     if (typeof v === "string") return v;
     if (v && typeof v === "object") {
-      const o = v as { city?: unknown; country?: unknown };
+      const o = v as { city?: unknown; country?: unknown; displayName?: unknown };
+      if (asString(o.displayName)) return asString(o.displayName)!;
       const city = asString(o.city);
       const country = asString(o.country);
       if (city && country) return `${city}, ${country}`;
@@ -130,7 +142,8 @@ function ProfilePageInner() {
         const avatarUrl = asString(d.avatarUrl);
         const workStyle = asString((d as Record<string, unknown>).workStyle) || asString((d as Record<string, unknown>).work_style);
         const helpNeeded = asString((d as Record<string, unknown>).helpNeeded) || asString((d as Record<string, unknown>).help_needed);
-        setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded });
+        const xp = typeof d.xp === 'number' ? d.xp : 0;
+        setProfile({ name, location, tags, bio, links, skills, fame, aim, game, portfolio, avatarUrl, workStyle, helpNeeded, xp });
         try {
           const raw = localStorage.getItem("civicmatch.favorites");
           const arr: string[] = raw ? JSON.parse(raw) : [];
@@ -148,72 +161,106 @@ function ProfilePageInner() {
   }
 
   return (
-    <div className="min-h-dvh p-4 md:p-6 lg:p-8 pb-52 lg:pb-0">
-      {/* Content */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
-        {/* Left: profile sections */}
-        <section className="space-y-4">
-          {/* Profile Pill + Basic info */}
-          <div className="grid gap-4">
-            {/* Profile Pill */}
-            <div className={`card p-4 transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '0ms' }}>
-              <div className="flex items-center gap-3">
-                <span className="relative inline-flex">
-                  {profile?.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={profile.avatarUrl} alt={profile.name} className="h-12 w-12 rounded-full object-cover aspect-square flex-shrink-0" />
-                  ) : (
-                    <span className="h-12 w-12 rounded-full bg-[color:var(--muted)]/40 inline-flex items-center justify-center aspect-square flex-shrink-0">
-                      <UserRound className="size-5 opacity-70" />
-                    </span>
-                  )}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <h1 className="text-lg font-semibold truncate">{profile?.name ?? ""}</h1>
-                  {profile?.location && (
-                    <div className="text-sm opacity-80">{profile.location}</div>
-                  )}
-                </div>
-                {targetUserId && (
-                  <button
-                    className={`h-9 w-9 rounded-full border flex items-center justify-center transition-colors ${isFavorite ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-transparent' : 'bg-[color:var(--background)]/80 border-divider'}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (!targetUserId) return;
-                      try {
-                        const raw = localStorage.getItem('civicmatch.favorites');
-                        const arr: string[] = raw ? JSON.parse(raw) : [];
-                        const set = new Set(arr);
-                        if (set.has(targetUserId)) { set.delete(targetUserId); setIsFavorite(false); }
-                        else { set.add(targetUserId); setIsFavorite(true); }
-                        localStorage.setItem('civicmatch.favorites', JSON.stringify(Array.from(set)));
-                      } catch {}
-                    }}
-                    aria-label={isFavorite ? 'Remove favorite' : 'Add to favorites'}
-                  >
-                    <Star className="size-4" />
-                  </button>
+    <div className="min-h-dvh page-container pb-28 lg:pb-8">
+      {/* Two-column layout */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px] items-start">
+        
+        {/* LEFT COLUMN - Profile Content */}
+        <section className="space-y-6">
+          {/* Profile Header Card */}
+          <div className={`card transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            <div className="flex items-start gap-4">
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                {profile?.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={profile.avatarUrl} 
+                    alt={profile.name} 
+                    className="h-20 w-20 rounded-full object-cover ring-4 ring-[color:var(--background)] shadow-lg" 
+                  />
+                ) : (
+                  <span className="h-20 w-20 rounded-full bg-gradient-to-br from-[color:var(--muted)] to-[color:var(--muted)]/60 inline-flex items-center justify-center ring-4 ring-[color:var(--background)] shadow-lg">
+                    <UserRound className="size-8 opacity-70" />
+                  </span>
                 )}
               </div>
-              
-              {/* Tags */}
-              {(profile?.tags ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-2 text-xs mt-3">
-                  {profile?.tags.map((t) => (
-                    <span key={t} className="px-3 py-1 rounded-full border border-divider">{t}</span>
-                  ))}
+
+              {/* Name & Location */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h1 className="text-xl font-bold truncate">{profile?.name ?? ""}</h1>
+                    {profile?.location && (
+                      <div className="flex items-center gap-1 text-sm text-[color:var(--muted-foreground)] mt-0.5">
+                        <MapPin className="size-3.5" />
+                        {profile.location}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {targetUserId && (
+                      <button
+                        className={`
+                          h-9 w-9 rounded-full border flex items-center justify-center transition-all
+                          ${isFavorite 
+                            ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-transparent scale-105' 
+                            : 'bg-[color:var(--background)]/80 border-divider hover:border-[color:var(--accent)]/50'
+                          }
+                        `}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (!targetUserId) return;
+                          try {
+                            const raw = localStorage.getItem('civicmatch.favorites');
+                            const arr: string[] = raw ? JSON.parse(raw) : [];
+                            const set = new Set(arr);
+                            if (set.has(targetUserId)) { set.delete(targetUserId); setIsFavorite(false); }
+                            else { set.add(targetUserId); setIsFavorite(true); }
+                            localStorage.setItem('civicmatch.favorites', JSON.stringify(Array.from(set)));
+                          } catch {}
+                        }}
+                        aria-label={isFavorite ? 'Remove favorite' : 'Add to favorites'}
+                      >
+                        <Star className={`size-4 ${isFavorite ? 'fill-current' : ''}`} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
-              
-              {/* Bio and Links */}
-              <div className="grid sm:grid-cols-2 gap-4 items-start mt-4">
-                <div className="text-sm leading-relaxed opacity-90">
+
+                {/* Tags */}
+                {(profile?.tags ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {profile?.tags.map((t) => (
+                      <span 
+                        key={t} 
+                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-[color:var(--muted)]/20 border border-divider"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Bio and Links */}
+            <div className="grid sm:grid-cols-2 gap-6 mt-6 pt-6 border-t border-divider">
+              <div>
+                <h3 className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted-foreground)] mb-2">About</h3>
+                <div className="text-sm leading-relaxed">
                   {profile?.bio ? renderWithLinks(profile.bio) : (
-                    <span className="italic opacity-60">No information from the founder</span>
+                    <span className="italic text-[color:var(--muted-foreground)]">No bio provided</span>
                   )}
                 </div>
-                {(profile?.links ?? []).length > 0 && (
-                  <ul className="space-y-2 text-sm">
+              </div>
+              
+              {(profile?.links ?? []).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted-foreground)] mb-2">Links</h3>
+                  <ul className="space-y-2">
                     {profile?.links.map((l, i) => {
                       const href = normalizeUrl(l);
                       let fav: string | null = null;
@@ -227,25 +274,25 @@ function ProfilePageInner() {
                             <LinkIcon className="size-4 opacity-70" />
                           )}
                           <a
-                            className="hover:underline break-words truncate"
+                            className="text-sm hover:text-[color:var(--accent)] truncate transition-colors"
                             href={href}
                             target="_blank"
                             rel="noopener noreferrer"
                             title={l}
                           >
-                            {l}
+                            {l.replace(/^https?:\/\/(www\.)?/, '')}
                           </a>
                         </li>
                       );
                     })}
                   </ul>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Profile sections - only show if they have data */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {(() => {
               const sections = [];
               let delayIndex = 0;
@@ -253,9 +300,18 @@ function ProfilePageInner() {
               // Skills & What I Do - only show if skills exist
               if ((profile?.skills ?? []).length > 0) {
                 sections.push(
-                  <section key="skills" className={`card space-y-3 h-full flex flex-col min-h-[200px] transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
-                    <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
-                    <p className="text-sm">{profile?.skills.join(", ")}</p>
+                  <section 
+                    key="skills" 
+                    className={`card h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} 
+                    style={{ transitionDelay: `${delayIndex * 100}ms` }}
+                  >
+                    <header className="flex items-center gap-2 mb-3">
+                      <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                        <Wrench className="size-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <h2 className="font-semibold text-sm">Skills & What I Do</h2>
+                    </header>
+                    <p className="text-sm text-[color:var(--muted-foreground)] flex-1">{profile?.skills.join(", ")}</p>
                   </section>
                 );
                 delayIndex++;
@@ -264,9 +320,18 @@ function ProfilePageInner() {
               // What I'm Known For - only show if fame exists
               if (profile?.fame && profile.fame.trim()) {
                 sections.push(
-                  <section key="fame" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
-                    <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Known For</h2></header>
-                    <p className="text-sm">{renderWithLinks(profile.fame)}</p>
+                  <section 
+                    key="fame" 
+                    className={`card h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} 
+                    style={{ transitionDelay: `${delayIndex * 100}ms` }}
+                  >
+                    <header className="flex items-center gap-2 mb-3">
+                      <div className="h-8 w-8 rounded-lg bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
+                        <Heart className="size-4 text-rose-600 dark:text-rose-400" />
+                      </div>
+                      <h2 className="font-semibold text-sm">What I&apos;m Known For</h2>
+                    </header>
+                    <p className="text-sm text-[color:var(--muted-foreground)] flex-1">{renderWithLinks(profile.fame)}</p>
                   </section>
                 );
                 delayIndex++;
@@ -275,9 +340,18 @@ function ProfilePageInner() {
               // What I'm Focused On - only show if aim exists
               if (profile?.aim && profile.aim[0]?.title && profile.aim[0].title.trim()) {
                 sections.push(
-                  <section key="aim" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
-                    <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Focused On</h2></header>
-                    <p className="text-sm">{renderWithLinks(profile.aim[0].title)}</p>
+                  <section 
+                    key="aim" 
+                    className={`card h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} 
+                    style={{ transitionDelay: `${delayIndex * 100}ms` }}
+                  >
+                    <header className="flex items-center gap-2 mb-3">
+                      <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                        <Lightbulb className="size-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <h2 className="font-semibold text-sm">What I&apos;m Focused On</h2>
+                    </header>
+                    <p className="text-sm text-[color:var(--muted-foreground)] flex-1">{renderWithLinks(profile.aim[0].title)}</p>
                   </section>
                 );
                 delayIndex++;
@@ -286,9 +360,18 @@ function ProfilePageInner() {
               // Long-term Strategy - only show if game exists
               if (profile?.game && profile.game.trim()) {
                 sections.push(
-                  <section key="game" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
-                    <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
-                    <p className="text-sm">{renderWithLinks(profile.game)}</p>
+                  <section 
+                    key="game" 
+                    className={`card h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} 
+                    style={{ transitionDelay: `${delayIndex * 100}ms` }}
+                  >
+                    <header className="flex items-center gap-2 mb-3">
+                      <div className="h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                        <Sparkles className="size-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <h2 className="font-semibold text-sm">Long‑term Strategy</h2>
+                    </header>
+                    <p className="text-sm text-[color:var(--muted-foreground)] flex-1">{renderWithLinks(profile.game)}</p>
                   </section>
                 );
                 delayIndex++;
@@ -297,9 +380,18 @@ function ProfilePageInner() {
               // Work Style - only show if workStyle exists
               if (profile?.workStyle && profile.workStyle.trim()) {
                 sections.push(
-                  <section key="workStyle" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
-                    <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
-                    <p className="text-sm">{renderWithLinks(profile.workStyle)}</p>
+                  <section 
+                    key="workStyle" 
+                    className={`card h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} 
+                    style={{ transitionDelay: `${delayIndex * 100}ms` }}
+                  >
+                    <header className="flex items-center gap-2 mb-3">
+                      <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <Wrench className="size-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <h2 className="font-semibold text-sm">Work Style</h2>
+                    </header>
+                    <p className="text-sm text-[color:var(--muted-foreground)] flex-1">{renderWithLinks(profile.workStyle)}</p>
                   </section>
                 );
                 delayIndex++;
@@ -308,9 +400,18 @@ function ProfilePageInner() {
               // What do I need help with - only show if helpNeeded exists
               if (profile?.helpNeeded && profile.helpNeeded.trim()) {
                 sections.push(
-                  <section key="helpNeeded" className={`card space-y-3 h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: `${delayIndex * 180}ms` }}>
-                    <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
-                    <p className="text-sm">{renderWithLinks(profile.helpNeeded)}</p>
+                  <section 
+                    key="helpNeeded" 
+                    className={`card h-full flex flex-col transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} 
+                    style={{ transitionDelay: `${delayIndex * 100}ms` }}
+                  >
+                    <header className="flex items-center gap-2 mb-3">
+                      <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                        <Lightbulb className="size-4 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <h2 className="font-semibold text-sm">What do I need help with</h2>
+                    </header>
+                    <p className="text-sm text-[color:var(--muted-foreground)] flex-1">{renderWithLinks(profile.helpNeeded)}</p>
                   </section>
                 );
                 delayIndex++;
@@ -321,13 +422,36 @@ function ProfilePageInner() {
           </div>
         </section>
 
-        {/* Right: empty space where composer would be - matches the grid layout */}
-        <aside className="hidden lg:block sticky top-20 h-[calc((100dvh-5rem)/2)]">
-          <div className="card space-y-3 rounded-2xl h-full flex flex-col">
-            <div className="font-semibold">Profile View</div>
-            <div className="text-sm opacity-60 flex-1 flex items-center justify-center">
-              This profile was accessed directly from an email link.
+        {/* RIGHT COLUMN - Sidebar */}
+        <aside className={`lg:sticky lg:top-20 space-y-4 transition-all duration-600 ease-out ${animateIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '200ms' }}>
+          {/* Upcoming Events */}
+          {targetUserId && (
+            <div className="card">
+              <div className="flex items-center justify-between border-b border-divider pb-3 mb-4">
+                <h3 className="font-semibold">Upcoming Events</h3>
+              </div>
+              <UpcomingEvents userId={targetUserId} limit={3} />
             </div>
+          )}
+          
+          {/* Contributions CV */}
+          <div className="card">
+            <div className="flex items-center justify-between border-b border-divider pb-3 mb-4">
+              <h3 className="font-semibold">Contributions</h3>
+              {profile?.xp !== undefined && profile.xp > 0 && (
+                <span className="text-sm text-[color:var(--muted-foreground)]">
+                  {profile.xp.toLocaleString()} XP
+                </span>
+              )}
+            </div>
+            
+            {/* Activity Timeline (CV) */}
+            {targetUserId && (
+              <ActivityTimeline 
+                userId={targetUserId} 
+                limit={20}
+              />
+            )}
           </div>
         </aside>
       </div>

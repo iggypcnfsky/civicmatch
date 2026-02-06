@@ -2,10 +2,30 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserRound, Camera, MapPin, Save, Plus, Trash2, Link as LinkIcon, Wrench, Heart, Lightbulb, Sparkles, LogOut, Lock, Eye, Mail, Trash, AlertTriangle } from "lucide-react";
+import { 
+  UserRound, 
+  Camera, 
+  MapPin, 
+  Save, 
+  Plus, 
+  Trash2, 
+  Link as LinkIcon, 
+  Wrench, 
+  Heart, 
+  Lightbulb, 
+  Sparkles, 
+  LogOut, 
+  Lock, 
+  Eye, 
+  Mail, 
+  Trash, 
+  AlertTriangle,
+  Settings,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import LocationAutocomplete, { LocationData } from "@/components/LocationAutocomplete";
 import { loadGoogleMaps } from "@/lib/google/maps-loader";
+import { ActivityTimeline, UpcomingEvents } from "@/components/profile";
 
 type AimItem = { title: string; summary: string };
 type CustomSection = { id: string; title: string; content: string };
@@ -26,6 +46,7 @@ type ProfileData = {
   avatarUrl?: string;
   workStyle?: string;
   helpNeeded?: string;
+  xp?: number;
   emailPreferences?: {
     weeklyMatchingEnabled?: boolean;
     profileRemindersEnabled?: boolean;
@@ -56,6 +77,7 @@ export default function ProfilePage() {
   const [aimSingle, setAimSingle] = useState<string>("");
   const [workStyle, setWorkStyle] = useState<string>("");
   const [helpNeeded, setHelpNeeded] = useState<string>("");
+  const [xp, setXp] = useState<number>(0);
   const [emailPreferences, setEmailPreferences] = useState({
     weeklyMatchingEnabled: true,
     profileRemindersEnabled: true,
@@ -64,6 +86,7 @@ export default function ProfilePage() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function failSafeLogout() {
@@ -95,6 +118,7 @@ export default function ProfilePage() {
       workStyle,
       helpNeeded,
       emailPreferences,
+      xp, // Preserve XP
     } as const;
   }
 
@@ -141,6 +165,7 @@ export default function ProfilePage() {
     setAvatarUrl(asString(d.avatarUrl) ?? "");
     setWorkStyle(asString((d as ProfileData).workStyle) ?? "");
     setHelpNeeded(asString((d as ProfileData).helpNeeded) ?? "");
+    setXp(typeof d.xp === 'number' ? d.xp : 0);
     
     // Handle email preferences
     if (d.emailPreferences && typeof d.emailPreferences === 'object') {
@@ -168,6 +193,7 @@ export default function ProfilePage() {
         const { data: sess } = await supabase.auth.getSession();
         const user = sess?.session?.user;
         if (!user) return;
+        setCurrentUserId(user.id);
         // Ensure a profile exists (create once; never overwrite existing data)
         const username = user.email ?? "";
         const { data: existing, error: existingErr } = await supabase
@@ -265,8 +291,6 @@ export default function ProfilePage() {
     }
   };
 
-
-
   async function uploadAvatar(file: File) {
     const { data: sess } = await supabase.auth.getSession();
     const user = sess?.session?.user;
@@ -282,78 +306,90 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-dvh p-4 md:p-6 lg:p-8 space-y-6 pb-28 md:pb-6">
-      <header className="flex items-center gap-2">
-        <UserRound className="size-5 text-[color:var(--accent)]" />
-        <h1 className="text-2xl font-bold">Edit Profile</h1>
-        <div className="hidden md:flex items-center gap-2 ml-auto">
+    <div className="min-h-dvh page-container pb-28 md:pb-8">
+      {/* Header */}
+      <header className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <UserRound className="size-5 text-[color:var(--accent)]" />
+          <h1 className="text-2xl font-bold">Edit Profile</h1>
+        </div>
+        <div className="hidden md:flex items-center gap-2">
           <button
-            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
+            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm transition-colors"
             onClick={async () => {
               const { data: sess } = await supabase.auth.getSession();
               const uid = sess?.session?.user?.id;
-              if (uid) router.push(`/profiles?user=${uid}`);
+              if (uid) router.push(`/profiles/${uid}`);
             }}
           >
-            <Eye className="mr-2 size-4" /> Preview profile
+            <Eye className="mr-2 size-4" /> Preview
           </button>
-          <button className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm" onClick={saveAll} disabled={loading}>
+          <button 
+            className="h-10 px-5 inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60" 
+            onClick={saveAll} 
+            disabled={loading}
+          >
             <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
           </button>
         </div>
       </header>
 
-      <div className="space-y-4">
-        {/* Main form - 2 column layout for desktop */}
-        <section className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
-          {/* Left Column - Container for BASICS and Email Preferences */}
-          <div className="space-y-4">
-          {/* Basics */}
+      {/* Two-column layout */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px] items-start">
+        
+        {/* LEFT COLUMN - Edit Forms */}
+        <div className="space-y-4">
+          {/* Basics Card */}
           <div id="basics" className="card space-y-4">
-            <div className="border-b border-divider pb-3 flex items-center justify-between">
+            <div className="border-b border-divider pb-3 flex items-center gap-2">
+              <UserRound className="size-4 text-[color:var(--accent)]" />
               <h2 className="font-semibold">Basics</h2>
             </div>
+            
             <div className="space-y-4">
               {/* Avatar section */}
-              <div className="flex flex-col items-center gap-4">
-                <div className="size-24 rounded-full bg-[color:var(--muted)]/60 flex items-center justify-center overflow-hidden">
+              <div className="flex items-center gap-4">
+                <div className="size-20 rounded-full bg-[color:var(--muted)]/40 flex items-center justify-center overflow-hidden ring-4 ring-[color:var(--background)] shadow-md">
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="Avatar" className="size-24 object-cover" />
+                    <img src={avatarUrl} alt="Avatar" className="size-20 object-cover" />
                   ) : (
-                    <Camera className="size-6" />
+                    <Camera className="size-6 opacity-50" />
                   )}
                 </div>
-                <button
-                  className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Camera className="mr-2 size-4" /> Change Picture
-                </button>
+                <div>
+                  <button
+                    className="h-9 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Camera className="mr-2 size-4" /> Change Photo
+                  </button>
+                  <p className="text-xs text-[color:var(--muted-foreground)] mt-1">JPG, PNG or WebP</p>
+                </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
               </div>
               
               {/* Name fields */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm">First name</label>
-                  <input className="w-full rounded-full border bg-transparent px-4 py-2" value={first} onChange={(e) => setFirst(e.target.value)} />
+                  <label className="text-sm font-medium mb-1.5 block">First name</label>
+                  <input className="w-full h-10 rounded-full border bg-transparent px-4 text-sm" value={first} onChange={(e) => setFirst(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-sm">Last name</label>
-                  <input className="w-full rounded-full border bg-transparent px-4 py-2" value={last} onChange={(e) => setLast(e.target.value)} />
+                  <label className="text-sm font-medium mb-1.5 block">Last name</label>
+                  <input className="w-full h-10 rounded-full border bg-transparent px-4 text-sm" value={last} onChange={(e) => setLast(e.target.value)} />
                 </div>
               </div>
               
               {/* Email */}
               <div>
-                <label className="text-sm">Email</label>
-                <input className="w-full rounded-full border bg-transparent px-4 py-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <label className="text-sm font-medium mb-1.5 block">Email</label>
+                <input className="w-full h-10 rounded-full border bg-transparent px-4 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               
               {/* Location */}
               <div>
-                <label className="text-sm">Location</label>
+                <label className="text-sm font-medium mb-1.5 block">Location</label>
                 {mapsLoaded ? (
                   <LocationAutocomplete
                     value={location}
@@ -365,7 +401,7 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2">
                     <MapPin className="size-4 opacity-70" />
                     <input 
-                      className="flex-1 rounded-full border bg-transparent px-4 py-2" 
+                      className="flex-1 h-10 rounded-full border bg-transparent px-4 text-sm" 
                       value={typeof location === 'string' ? location : location?.displayName || ''} 
                       onChange={(e) => setLocation(e.target.value)}
                       placeholder="Enter your city or location"
@@ -376,136 +412,45 @@ export default function ProfilePage() {
               
               {/* Tags */}
               <div>
-                <label className="text-sm">Tags (comma‑separated)</label>
-                <input className="w-full rounded-full border bg-transparent px-4 py-2" value={tags} onChange={(e) => setTags(e.target.value)} />
+                <label className="text-sm font-medium mb-1.5 block">Tags (comma‑separated)</label>
+                <input className="w-full h-10 rounded-full border bg-transparent px-4 text-sm" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g., Product Manager, Climate Tech" />
               </div>
               
               {/* Bio */}
               <div>
-                <label className="text-sm">Intro</label>
-                <textarea className="w-full rounded-lg border bg-transparent px-3 py-2" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} />
+                <label className="text-sm font-medium mb-1.5 block">Intro</label>
+                <textarea className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm resize-none" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="A brief introduction about yourself..." />
               </div>
               
               {/* Links */}
               <div>
-                <label className="text-sm">Links</label>
+                <label className="text-sm font-medium mb-1.5 block">Links</label>
                 <div className="space-y-2">
                   {links.map((l, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <LinkIcon className="size-4 opacity-70" />
-                      <input className="flex-1 rounded-full border bg-transparent px-4 py-2" value={l} onChange={(e) => setLinks(links.map((x, idx) => (idx === i ? e.target.value : x)))} />
-                      <button className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
+                      <LinkIcon className="size-4 opacity-70 flex-shrink-0" />
+                      <input className="flex-1 h-10 rounded-full border bg-transparent px-4 text-sm" value={l} onChange={(e) => setLinks(links.map((x, idx) => (idx === i ? e.target.value : x)))} placeholder="https://..." />
+                      <button className="h-10 w-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-red-100 hover:border-red-200 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors" onClick={() => setLinks(links.filter((_, idx) => idx !== i))}><Trash2 className="size-4" /></button>
                     </div>
                   ))}
-                  <button className="h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
+                  <button className="h-9 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 px-4 text-sm transition-colors" onClick={() => setLinks([...links, ""]) }><Plus className="mr-2 size-4" /> Add link</button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Email Preferences Panel */}
-          <div id="email-preferences" className="card space-y-4">
-            <div className="border-b border-divider pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mail className="size-4 text-[color:var(--accent)]" />
-                <h2 className="font-semibold">Email Preferences</h2>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {/* Weekly Match Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-sm font-medium">Weekly Match</label>
-                  <p className="text-xs text-[color:var(--muted-foreground)] mt-1">
-                    Receive weekly matches with potential collaborators
-                  </p>
-                </div>
-                <button
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    emailPreferences.weeklyMatchingEnabled 
-                      ? 'bg-[color:var(--accent)]' 
-                      : 'bg-[color:var(--muted)]/60'
-                  }`}
-                  onClick={() => setEmailPreferences(prev => ({ ...prev, weeklyMatchingEnabled: !prev.weeklyMatchingEnabled }))}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      emailPreferences.weeklyMatchingEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Newsletter Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-sm font-medium">Newsletter</label>
-                  <p className="text-xs text-[color:var(--muted-foreground)] mt-1">
-                    Receive updates about platform features and community highlights
-                  </p>
-                </div>
-                <button
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    emailPreferences.profileRemindersEnabled 
-                      ? 'bg-[color:var(--accent)]' 
-                      : 'bg-[color:var(--muted)]/60'
-                  }`}
-                  onClick={() => setEmailPreferences(prev => ({ ...prev, profileRemindersEnabled: !prev.profileRemindersEnabled }))}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      emailPreferences.profileRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Account Actions Panel */}
-          <div id="account-actions" className="card space-y-4">
-            <div className="border-b border-divider pb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <UserRound className="size-4 text-[color:var(--accent)]" />
-                <h2 className="font-semibold">Account Actions</h2>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {/* Reset Password */}
-              <button
-                className="w-full h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-                onClick={() => router.push('/auth/reset')}
-              >
-                <Lock className="mr-2 size-4" /> Reset Password
-              </button>
-
-              {/* Logout */}
-              <button
-                className="w-full h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm"
-                onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
-              >
-                <LogOut className="mr-2 size-4" /> Logout
-              </button>
-
-              {/* Delete Account */}
-              <button
-                className="w-full h-10 inline-flex items-center justify-center rounded-full border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/50 dark:hover:bg-red-950/70 dark:text-red-400"
-                onClick={() => setShowDeleteConfirm(true)}
-              >
-                <Trash className="mr-2 size-4" /> Delete Account
-              </button>
-            </div>
-          </div>
-          </div>
-
-          {/* Right Column - All other panels */}
-          <div className="space-y-4">
+          {/* Profile Content Cards - 2x3 Grid */}
+          <div className="grid gap-4 sm:grid-cols-2">
             {/* Skills & What I Do */}
             <section id="skills" className="card space-y-3">
-              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Skills & What I Do</h2></header>
+              <header className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Wrench className="size-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h2 className="font-semibold text-sm">Skills & What I Do</h2>
+              </header>
               <textarea
-                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
-                rows={3}
+                className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm min-h-[120px] resize-none"
                 placeholder="List your core skills or roles (e.g., Full‑stack engineer, Product manager)"
                 value={skills}
                 onChange={(e) => setSkills(e.target.value)}
@@ -514,11 +459,15 @@ export default function ProfilePage() {
 
             {/* What I'm Known For */}
             <section id="fame" className="card space-y-3">
-              <header className="flex items-center gap-2"><Heart className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Known For</h2></header>
+              <header className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center">
+                  <Heart className="size-4 text-rose-600 dark:text-rose-400" />
+                </div>
+                <h2 className="font-semibold text-sm">What I&apos;m Known For</h2>
+              </header>
               <textarea
-                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
-                rows={3}
-                placeholder="What are you known for? (e.g., Led open‑data initiative in my city; ex‑Google PM)"
+                className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm min-h-[120px] resize-none"
+                placeholder="What are you known for? (e.g., Led open‑data initiative in my city)"
                 value={fame}
                 onChange={(e) => setFame(e.target.value)}
               />
@@ -526,11 +475,15 @@ export default function ProfilePage() {
 
             {/* What I'm Focused On */}
             <section id="aim" className="card space-y-3">
-              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What I&apos;m Focused On</h2></header>
+              <header className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                  <Lightbulb className="size-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <h2 className="font-semibold text-sm">What I&apos;m Focused On</h2>
+              </header>
               <textarea
-                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
-                rows={3}
-                placeholder="What are you focusing on in the next 3–6 months? (e.g., Building MVP for civic engagement app)"
+                className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm min-h-[120px] resize-none"
+                placeholder="What are you focusing on in the next 3–6 months?"
                 value={aimSingle}
                 onChange={(e) => setAimSingle(e.target.value)}
               />
@@ -538,11 +491,15 @@ export default function ProfilePage() {
 
             {/* Long-term Strategy */}
             <section id="game" className="card space-y-3">
-              <header className="flex items-center gap-2"><Sparkles className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Long‑term Strategy</h2></header>
+              <header className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                  <Sparkles className="size-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <h2 className="font-semibold text-sm">Long‑term Strategy</h2>
+              </header>
               <textarea
-                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
-                rows={3}
-                placeholder="What's your long‑term vision? (e.g., Launch a public‑interest tech cooperative)"
+                className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm min-h-[120px] resize-none"
+                placeholder="What's your long‑term vision?"
                 value={game}
                 onChange={(e) => setGame(e.target.value)}
               />
@@ -550,11 +507,15 @@ export default function ProfilePage() {
 
             {/* Work Style */}
             <section id="work-style" className="card space-y-3">
-              <header className="flex items-center gap-2"><Wrench className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">Work Style</h2></header>
+              <header className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <Wrench className="size-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h2 className="font-semibold text-sm">Work Style</h2>
+              </header>
               <textarea
-                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
-                rows={3}
-                placeholder="How do you like to work? (e.g., Remote async, weekly check‑ins, prefers rapid prototyping)"
+                className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm min-h-[120px] resize-none"
+                placeholder="How do you like to work? (e.g., Remote async, weekly check‑ins)"
                 value={workStyle}
                 onChange={(e) => setWorkStyle(e.target.value)}
               />
@@ -562,40 +523,172 @@ export default function ProfilePage() {
 
             {/* What do I need help with */}
             <section id="help-needed" className="card space-y-3">
-              <header className="flex items-center gap-2"><Lightbulb className="size-4 text-[color:var(--accent)]" /><h2 className="font-semibold">What do I need help with</h2></header>
+              <header className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                  <Lightbulb className="size-4 text-orange-600 dark:text-orange-400" />
+                </div>
+                <h2 className="font-semibold text-sm">What do I need help with</h2>
+              </header>
               <textarea
-                className="w-full rounded-lg border bg-transparent px-3 py-2 min-h-[160px] resize-none"
-                rows={3}
-                placeholder="What help do you need? (e.g., Designer to shape UX; Intro to city data portal)"
+                className="w-full rounded-xl border bg-transparent px-4 py-3 text-sm min-h-[120px] resize-none"
+                placeholder="What help do you need? (e.g., Designer to shape UX)"
                 value={helpNeeded}
                 onChange={(e) => setHelpNeeded(e.target.value)}
               />
             </section>
           </div>
-        </section>
+
+          {/* Settings Section */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Email Preferences Panel */}
+            <div id="email-preferences" className="card space-y-4">
+              <div className="border-b border-divider pb-3 flex items-center gap-2">
+                <Mail className="size-4 text-[color:var(--accent)]" />
+                <h2 className="font-semibold">Email Preferences</h2>
+              </div>
+              <div className="space-y-4">
+                {/* Weekly Match Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium">Weekly Match</label>
+                    <p className="text-xs text-[color:var(--muted-foreground)] mt-0.5">
+                      Receive weekly matches with collaborators
+                    </p>
+                  </div>
+                  <button
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      emailPreferences.weeklyMatchingEnabled 
+                        ? 'bg-[color:var(--accent)]' 
+                        : 'bg-[color:var(--muted)]/60'
+                    }`}
+                    onClick={() => setEmailPreferences(prev => ({ ...prev, weeklyMatchingEnabled: !prev.weeklyMatchingEnabled }))}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        emailPreferences.weeklyMatchingEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Newsletter Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium">Newsletter</label>
+                    <p className="text-xs text-[color:var(--muted-foreground)] mt-0.5">
+                      Platform updates and highlights
+                    </p>
+                  </div>
+                  <button
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      emailPreferences.profileRemindersEnabled 
+                        ? 'bg-[color:var(--accent)]' 
+                        : 'bg-[color:var(--muted)]/60'
+                    }`}
+                    onClick={() => setEmailPreferences(prev => ({ ...prev, profileRemindersEnabled: !prev.profileRemindersEnabled }))}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        emailPreferences.profileRemindersEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Account Actions Panel */}
+            <div id="account-actions" className="card space-y-4">
+              <div className="border-b border-divider pb-3 flex items-center gap-2">
+                <Settings className="size-4 text-[color:var(--accent)]" />
+                <h2 className="font-semibold">Account</h2>
+              </div>
+              <div className="space-y-2">
+                {/* Reset Password */}
+                <button
+                  className="w-full h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm transition-colors"
+                  onClick={() => router.push('/auth/reset')}
+                >
+                  <Lock className="mr-2 size-4" /> Reset Password
+                </button>
+
+                {/* Logout */}
+                <button
+                  className="w-full h-10 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm transition-colors"
+                  onClick={async () => { await supabase.auth.signOut(); localStorage.setItem("civicmatch.authenticated", "0"); window.location.href = "/"; }}
+                >
+                  <LogOut className="mr-2 size-4" /> Logout
+                </button>
+
+                {/* Delete Account */}
+                <button
+                  className="w-full h-10 inline-flex items-center justify-center rounded-full border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/50 dark:hover:bg-red-950/70 dark:text-red-400 transition-colors"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash className="mr-2 size-4" /> Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN - Sidebar */}
+        <aside className="lg:sticky lg:top-20 space-y-4">
+          {/* Upcoming Events */}
+          {currentUserId && (
+            <div className="card">
+              <div className="flex items-center justify-between border-b border-divider pb-3 mb-4">
+                <h3 className="font-semibold">Upcoming Events</h3>
+              </div>
+              <UpcomingEvents userId={currentUserId} limit={3} />
+            </div>
+          )}
+          
+          {/* Contributions CV */}
+          <div className="card">
+            <div className="flex items-center justify-between border-b border-divider pb-3 mb-4">
+              <h3 className="font-semibold">Your Contributions</h3>
+              {xp > 0 && (
+                <span className="text-sm text-[color:var(--muted-foreground)]">
+                  {xp.toLocaleString()} XP
+                </span>
+              )}
+            </div>
+            
+            {/* Activity Timeline (CV) */}
+            {currentUserId && (
+              <ActivityTimeline 
+                userId={currentUserId} 
+                limit={15}
+              />
+            )}
+          </div>
+        </aside>
       </div>
 
       {/* Delete Account Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-[color:var(--background)] rounded-lg p-6 max-w-md w-full border shadow-lg">
+          <div className="bg-[color:var(--background)] rounded-2xl p-6 max-w-md w-full border shadow-xl">
             <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="size-6 text-red-500" />
+              <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <AlertTriangle className="size-5 text-red-600 dark:text-red-400" />
+              </div>
               <h3 className="text-lg font-semibold">Delete Account</h3>
             </div>
-            <p className="text-[color:var(--muted-foreground)] mb-6">
+            <p className="text-sm text-[color:var(--muted-foreground)] mb-6">
               Are you sure you want to delete your account? This action cannot be undone. All your profile data, connections, and messages will be permanently deleted.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm flex-1"
+                className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-divider bg-[color:var(--muted)]/20 hover:bg-[color:var(--muted)]/30 text-sm flex-1 transition-colors"
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={deleting}
               >
                 Cancel
               </button>
               <button
-                className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-red-300 bg-red-600 hover:bg-red-700 text-white text-sm flex-1 disabled:opacity-50"
+                className="h-10 px-4 inline-flex items-center justify-center rounded-full border border-red-300 bg-red-600 hover:bg-red-700 text-white text-sm flex-1 disabled:opacity-50 transition-colors"
                 onClick={deleteAccount}
                 disabled={deleting}
               >
@@ -613,17 +706,15 @@ export default function ProfilePage() {
       )}
 
       {/* Sticky mobile save bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-[color:var(--background)]/95 backdrop-blur border-t">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-[color:var(--background)]/95 backdrop-blur border-t">
         <button
-          className="h-10 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm disabled:opacity-60"
+          className="h-12 w-full inline-flex items-center justify-center rounded-full border border-transparent bg-[color:var(--accent)] text-[color:var(--background)] text-sm font-medium disabled:opacity-60 transition-opacity"
           onClick={saveAll}
           disabled={loading}
         >
-          <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save"}
+          <Save className="mr-2 size-4" /> {loading ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>
   );
 }
-
-

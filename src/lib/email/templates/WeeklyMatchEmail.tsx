@@ -13,7 +13,6 @@ import { EmailLayout, baseUrl } from './shared/Layout';
 import { EmailHeader } from './shared/Header';
 import { EmailFooter } from './shared/Footer';
 import { 
-  MailIcon, 
   UserIcon, 
   SearchIcon, 
   WrenchIcon, 
@@ -408,18 +407,11 @@ export const WeeklyMatchEmail = ({
           </Section>
         )}
 
-        {/* CTA Buttons */}
+        {/* CTA Button */}
         <Section className="text-center mt-32">
           <Button 
-            href={`https://www.civicmatch.app/messages/start?currentUserId=${currentUser.userId}&targetUserId=${match.userId}`}
-            className="rounded-full bg-primary px-32 py-16 text-background font-semibold text-16 no-underline mr-16"
-          >
-            <MailIcon size={16} className="mr-8" />
-            Send Message
-          </Button>
-          <Button 
             href={`https://www.civicmatch.app/profiles/${match.userId}`}
-            className="rounded-full border border-border bg-muted px-32 py-16 text-text font-semibold text-16 no-underline"
+            className="rounded-full bg-primary px-32 py-16 text-background font-semibold text-16 no-underline"
           >
             <UserIcon size={16} className="mr-8" />
             View Profile

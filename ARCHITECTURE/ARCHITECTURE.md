@@ -2,11 +2,11 @@
 
 ### Product overview
 
-Civic Match helps changemakers find the right co‑founders and collaborators for impact projects.
+Civic Match helps changemakers find the right co‑founders and collaborators for impact.
 
 - **Explore (default)**: Search and filter people by values, skills, and causes in a masonry grid
 - **Connect**: Built‑in messaging to start conversations quickly
-- **Showcase**: Personal profile highlighting mission, skills, and projects
+- **Showcase**: Personal profile highlighting mission, skills, and experience
 - **Manage**: Focused dashboard for connections and conversations
 - **Access anywhere**: Fully responsive for desktop and mobile with dark mode
 
@@ -64,8 +64,6 @@ Client (RSC + selective CSR)
 - **Connection**: id, requesterId, addresseeId, status(pending|accepted|declined|blocked), createdAt
 - **Conversation**: id, participantIds[], createdAt, updatedAt
 - **Message**: id, conversationId, senderId, text, attachments[], createdAt, readAt?
-- **FundingOpportunity**: id, createdBy, title, countryCode, amount, deadline, websiteUrl, description, tags[], organization, type, createdAt, data{} (JSONB-first)
-- **FundingInterest**: id, fundingOpportunityId, userId, collaborationInterest?, notes?, skillsOffered[], createdAt, data{} (progressive enhancement)
 - **EmailLog**: id, userId, emailType, resendId, status, createdAt, data (separate table for analytics)
 - **SavedSearch** (optional later): id, userId, filters, createdAt
 
@@ -78,7 +76,6 @@ Indexes focus on username, search facets (skills/causes), and conversationId for
 - **Matching & search**: filter by values, skills, causes; sort by a rule‑based score
 - **Messaging**: 1:1 conversations with modern UI, keyboard shortcuts, and mobile optimization (see [MESSAGES.md](./MESSAGES.md))
 - **Connections**: request/accept/block; dashboard overview
-- **Funding Sources**: community-driven funding opportunity discovery with collaboration features (see [FUNDING.md](./FUNDING.md))
 - **Email system**: welcome emails, password resets, weekly reminders, matching suggestions with integrated messaging
 - **Notifications**: in‑app (toast/badge); email campaigns and transactional messages
 
@@ -168,7 +165,7 @@ Auth context: the app tree is wrapped by a lightweight client `AuthProvider` in 
 **Vision**: Transform discovery from chronological list to geographic exploration:
 - **Full-screen Google Maps**: Interactive world map showing users positioned by location
 - **Location-based Pills**: User avatars + names positioned according to profile location data
-- **Geographic Discovery**: "Who's building impact projects near me?" and global community visualization
+- **Geographic Discovery**: "Who's building impact near me?" and global community visualization
 - **Enhanced Filtering**: Maintain existing filters plus location-based options (near me, by country, radius-based)
 - **Clustering**: Intelligent grouping for dense urban areas
 - **Mobile Optimization**: Touch-friendly map interactions with bottom sheet controls
@@ -252,6 +249,8 @@ src/app/
   profiles/
     page.tsx              // Browse all profiles
     [userId]/page.tsx     // Individual profile view ✅ NEW
+  events/
+    page.tsx              // Events (user + discovered) ✅ NEW
   messages/
     page.tsx              // Conversations list + active thread (desktop split)
     [id]/page.tsx         // Full‑screen chat on mobile; global top bar shows a back arrow
@@ -906,7 +905,7 @@ Civic Match uses Resend as the primary email service provider combined with Reac
 - **Content**:
   - Personalized completion percentage with progress bar
   - Top 3 missing fields with importance explanations
-  - Benefits showcase (Better Matches, More Connections, Project Opportunities)
+  - Benefits showcase (Better Matches, More Connections, Collaboration Opportunities)
   - Direct CTA to complete profile with edit icon
   - Encouragement message and signature from your team
 - **Implementation**: 
@@ -1491,7 +1490,6 @@ This architecture document provides the foundational design for CivicMatch's cor
 - **[EXPLORE.md](./EXPLORE.md)** - Google Maps integration architecture, location-based discovery features, geographic filtering, and interactive world map implementation
 - **[MESSAGES.md](./MESSAGES.md)** - Complete messaging system architecture, UI design patterns, message composer features, keyboard shortcuts, mobile optimization, and implementation details
 - **[WEEKLYMATCHING.md](./WEEKLYMATCHING.md)** - Complete bi-weekly matching system architecture, Google Calendar integration, user preferences, and operational details
-- **[FUNDING.md](./FUNDING.md)** - Funding Sources feature architecture, community-driven opportunity discovery, collaboration systems, progressive interest expression, and future automated scraping capabilities
 - **[MYPROFILE.md](../MYPROFILE.md)** - My Profile view implementation, layout architecture, account management features, and responsive design patterns
 
 The document emphasizes:
@@ -1506,7 +1504,222 @@ This approach enables rapid iteration while maintaining production reliability, 
 
 ---
 
-*For detailed system implementations, see the specialized documentation: [EXPLORE.md](./EXPLORE.md) for geographic discovery, [MESSAGES.md](./MESSAGES.md) for messaging, [WEEKLYMATCHING.md](./WEEKLYMATCHING.md) for matching, [FUNDING.md](./FUNDING.md) for funding opportunities, and [MYPROFILE.md](../MYPROFILE.md) for profile management.*
+*For detailed system implementations, see the specialized documentation: [EXPLORE.md](./EXPLORE.md) for geographic discovery, [MESSAGES.md](./MESSAGES.md) for messaging, [WEEKLYMATCHING.md](./WEEKLYMATCHING.md) for matching, and [MYPROFILE.md](../MYPROFILE.md) for profile management.*
+
+## Events Module (Automated Discovery)
+
+The Events Module provides automated discovery and aggregation of civic tech events from across the web, combining user-submitted events with AI-discovered conferences, hackathons, meetups, and workshops.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        EVENT SOURCES                             │
+├──────────────────────┬──────────────────────────────────────────┤
+│ Source A: NewsAPI.ai │ Source B: Brave Search API               │
+│ (event announcements │ (event pages across the web)             │
+│  in press coverage)  │                                          │
+└──────────┬───────────┴────────────────────┬─────────────────────┘
+           │                                │
+           └──────────────┬─────────────────┘
+                          │
+           ┌──────────────▼─────────────────┐
+           │   OpenRouter AI (extraction)   │
+           │   - Detect if content is event │
+           │   - Extract structured data    │
+           │   - Score relevance (0-100)    │
+           └──────────────┬─────────────────┘
+                          │
+           ┌──────────────▼─────────────────┐
+           │   Nominatim (geocoding)        │
+           │   - Convert addresses to coords│
+           │   - Shared cache w/ challenges │
+           └──────────────┬─────────────────┘
+                          │
+           ┌──────────────▼─────────────────┐
+           │   Database (Supabase)          │
+           │   - discovered_events table    │
+           │   - Deduplication & merging    │
+           └──────────────┬─────────────────┘
+                          │
+           ┌──────────────▼─────────────────┐
+           │   Frontend Integration         │
+           │   - /events page               │
+           │   - Map layer (planned)        │
+           │   - Filter by type/date/cost   │
+           └────────────────────────────────┘
+```
+
+### Data Sources
+
+#### Source A: NewsAPI.ai
+- **Purpose**: Find event announcements in news coverage
+- **Keywords**: "civic tech conference", "govtech summit", "civic hackathon", "open government event"
+- **Volume**: ~30 articles per query, runs daily
+- **Cost**: Free tier (2,000 articles/month)
+
+#### Source B: Brave Search API
+- **Purpose**: Discover events across Eventbrite, Luma, Meetup, conference websites
+- **Query Groups**: 6 rotating groups covering:
+  - Civic Tech (daily)
+  - Democracy & Governance (Mon/Wed/Fri)
+  - Social Impact & Open Data (Tue/Thu/Sat)
+  - Regional - Europe (Mon/Thu)
+  - Regional - Global (Tue/Fri)
+  - Platform-specific (Wed/Sat)
+- **Volume**: ~15 queries/day, ~370 queries/month
+- **Cost**: Free tier (2,000 queries/month)
+
+### AI Processing Pipeline
+
+#### Step 1: Initial Extraction (Snippet-First)
+1. Send search result title + description to OpenRouter
+2. AI determines if content describes a real, upcoming civic tech event
+3. If extraction complete → store event
+4. If "need more info" → fetch full page content
+
+#### Step 2: Full Page Fetch (On Demand)
+1. Fetch event page HTML (10s timeout, 2 retries)
+2. Strip scripts/styles, extract main content
+3. Re-process with AI using full page text
+4. Truncate to 4000 chars for AI context window
+
+#### Step 3: Structured Data Extraction
+AI returns JSON with:
+```typescript
+{
+  is_event: boolean;
+  event: {
+    name: string;
+    start_date: string;     // YYYY-MM-DD
+    end_date: string;       // YYYY-MM-DD
+    location_city: string;
+    location_country: string;
+    is_online: boolean;
+    is_hybrid: boolean;
+    event_type: 'conference' | 'hackathon' | 'meetup' | ...;
+    cost: 'free' | 'paid' | 'donation' | 'unknown';
+    relevance_score: number; // 0-100
+    tags: string[];
+    // ... more fields
+  }
+}
+```
+
+### Relevance Scoring
+
+| Score | Category | Description |
+|-------|----------|-------------|
+| 90-100 | Core civic tech | Code for America Summit, Open Government Partnership, civic hackathons |
+| 70-89 | Strongly related | GovTech conferences, social innovation summits, open data events |
+| 50-69 | Tangentially related | General tech conferences with civic tracks, NGO meetings |
+| <50 | Not relevant | Filtered out, not stored |
+
+Only events with score ≥60 are displayed to users.
+
+### Deduplication Strategy
+
+1. **URL-based**: Check `source_url` and `event_url` for exact matches
+2. **Fuzzy name matching**: PostgreSQL `pg_trgm` extension for similar names
+3. **Date + Location**: Events within 3 days and same city are potential duplicates
+4. **Merging**: When duplicates found, merge missing fields from new source
+
+### Database Schema
+
+See migration file: `supabase/migrations/0010_discovered_events.sql`
+
+Key features:
+- `discovered_events` table with full-text search index
+- `combined_events` view merging user + discovered events
+- `pg_trgm` extension for fuzzy deduplication
+- Automatic expiration of past events
+- Stats view for dashboard metrics
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/events/discovered` | List discovered events with filters |
+| `GET /api/events/combined` | Unified list (user + discovered) |
+| `GET /api/events/map` | Events within bounding box (for map) |
+| `GET /api/events/stats` | Discovery statistics |
+| `GET /api/cron/discover-events` | Cron job for daily discovery |
+
+### Cron Configuration
+
+```json
+// vercel.json
+{
+  "crons": [
+    {
+      "path": "/api/cron/discover-events",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+```
+
+Runs daily at 2 AM UTC (~10-15 minutes execution time).
+
+### Cost Analysis
+
+| Service | Usage | Cost/Month |
+|---------|-------|------------|
+| Brave Search API | ~370 queries | Free (2,000 limit) |
+| NewsAPI.ai | ~600 articles | Free (2,000 limit) |
+| OpenRouter AI | ~7,200 calls | ~$1.50 |
+| Nominatim | ~200 requests | Free |
+| **Total** | | **~$1.50/month** |
+
+### File Structure
+
+```
+src/
+  types/
+    discoveredEvent.ts        # Event types, query groups, helpers
+  lib/
+    services/
+      BraveSearchService.ts   # Brave Search API client
+      PageFetchService.ts     # HTML content extraction
+      EventDiscoveryService.ts # Main coordination service
+    hooks/
+      useEvents.ts            # React hooks for events
+  app/
+    api/
+      events/
+        discovered/           # Discovered events API
+        combined/             # Unified events API
+        map/                  # Map bounds API
+        stats/                # Statistics API
+      cron/
+        discover-events/      # Daily discovery cron
+    events/
+      page.tsx                # Events page
+```
+
+### Environment Variables
+
+```bash
+# Event Discovery (optional)
+BRAVE_SEARCH_API_KEY=your_brave_key
+NEWSAPI_AI_KEY=your_newsapi_key
+OPENROUTER_API_KEY=your_openrouter_key
+NOMINATIM_USER_AGENT=CivicMatch/1.0
+
+# Cron
+CRON_SECRET=your_cron_secret
+```
+
+### Future Enhancements
+
+1. **Map Integration**: Display events on Google Maps alongside challenges
+2. **Email Digest**: Weekly "upcoming events near you" emails
+3. **iCal Export**: Subscribe to events feed
+4. **User Flagging**: Report incorrect events or duplicates
+5. **Smart Recommendations**: ML-based event recommendations based on user profile
+6. **Event Series**: Track recurring events (monthly meetups, annual conferences)
+
+---
 
 ## PWA (MVP) plan
 

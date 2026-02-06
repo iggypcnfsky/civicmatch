@@ -1,42 +1,142 @@
 @import "tailwindcss";
 
-/* Civic Match Theme (DM Sans + palette) */
+/* ==========================================================================
+   Civic Match Design System
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Font System (Google Sans Flex + Google Sans)
+   -------------------------------------------------------------------------- */
 :root {
-  /* Light theme */
-  --background: #FFFCF2; /* Ivory */
-  --foreground: #252422; /* Charcoal */
-  --muted: #CCC5B9;      /* Stone */
-  --accent: #EB5E28;     /* Orange */
+  --font-primary: "Google Sans Flex", sans-serif;
+  --font-secondary: "Google Sans", sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   2. Spacing System (Universal Padding)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Base spacing scale */
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 1rem;      /* 16px */
+  --spacing-lg: 1.5rem;    /* 24px */
+  --spacing-xl: 2rem;      /* 32px */
+  --spacing-2xl: 3rem;     /* 48px */
+  --spacing-3xl: 4rem;     /* 64px */
+  
+  /* Page-level padding (responsive) */
+  --page-padding-x: var(--spacing-md);
+  --page-padding-y: var(--spacing-lg);
+  
+  /* Component padding */
+  --card-padding: var(--spacing-md);
+  --section-padding: var(--spacing-lg);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-padding-x: var(--spacing-lg);
+    --page-padding-y: var(--spacing-xl);
+    --card-padding: var(--spacing-lg);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-padding-x: var(--spacing-xl);
+    --section-padding: var(--spacing-xl);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. Color System
+   -------------------------------------------------------------------------- */
+:root {
+  /* Core Colors (palette) */
+  --color-ivory: #FFFCF2;
+  --color-charcoal: #252422;
+  --color-stone: #CCC5B9;
+  --color-orange: #EB5E28;
+  
+  /* Semantic aliases (Light theme) */
+  --background: var(--color-ivory);
+  --foreground: var(--color-charcoal);
+  --muted: var(--color-stone);
+  --accent: var(--color-orange);
+  
+  /* Additional semantic colors */
+  --card: var(--background);
+  --muted-foreground: color-mix(in srgb, var(--foreground) 60%, transparent);
   --divider: color-mix(in srgb, var(--foreground) 25%, transparent);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Invert foreground for better contrast, keep warm background */
+    --background: var(--color-charcoal);
+    --foreground: var(--color-ivory);
+    /* muted and accent stay the same */
+    --card: var(--background);
+    --muted-foreground: color-mix(in srgb, var(--foreground) 60%, transparent);
+    --divider: color-mix(in srgb, var(--foreground) 25%, transparent);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. Tailwind Theme Integration
+   -------------------------------------------------------------------------- */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-border: var(--divider);
-  --font-sans: var(--font-dm-sans);
+  --font-sans: var(--font-primary);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Invert foreground for better contrast, keep warm background */
-    --background: #252422;
-    --foreground: #FFFCF2;
-    --muted: #CCC5B9;
-    --accent: #EB5E28;
-    --divider: color-mix(in srgb, var(--foreground) 25%, transparent);
-  }
-}
-
+/* --------------------------------------------------------------------------
+   5. Base Styles
+   -------------------------------------------------------------------------- */
 html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: var(--font-primary);
+  font-optical-sizing: auto;
+  font-variation-settings: "slnt" 0, "wdth" 100, "GRAD" 0, "ROND" 0;
 }
 
-/* Shared utility accents */
+/* --------------------------------------------------------------------------
+   6. Font Utility Classes
+   -------------------------------------------------------------------------- */
+.google-sans-flex {
+  font-family: var(--font-primary);
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-variation-settings: "slnt" 0, "wdth" 100, "GRAD" 0, "ROND" 0;
+}
+
+.google-sans {
+  font-family: var(--font-secondary);
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-variation-settings: "GRAD" 0;
+}
+
+/* Weight utilities for Google Sans Flex (1-1000) */
+.font-thin { font-weight: 100; }
+.font-extralight { font-weight: 200; }
+.font-light { font-weight: 300; }
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
+.font-black { font-weight: 900; }
+
+/* --------------------------------------------------------------------------
+   7. Component Utilities
+   -------------------------------------------------------------------------- */
 .btn {
   @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors;
 }
@@ -50,11 +150,27 @@ html, body {
   color: var(--foreground);
 }
 .card {
-  @apply rounded-xl border p-4 md:p-5 lg:p-6 bg-[color:var(--background)]/80;
+  @apply rounded-xl border bg-[color:var(--background)]/80;
+  padding: var(--card-padding);
   border-color: var(--divider);
 }
 
-/* Divider utility */
+/* Page container utility */
+.page-container {
+  padding-left: var(--page-padding-x);
+  padding-right: var(--page-padding-x);
+  padding-top: var(--page-padding-y);
+  padding-bottom: var(--page-padding-y);
+}
+
+/* Section utility */
+.section {
+  padding: var(--section-padding);
+}
+
+/* --------------------------------------------------------------------------
+   8. Border Utilities
+   -------------------------------------------------------------------------- */
 .border-divider { border-color: var(--divider) !important; }
 hr { border-color: var(--divider); }
 
@@ -65,11 +181,50 @@ hr { border-color: var(--divider); }
   border-color: var(--divider) !important;
 }
 
-/* Simple entrance animation for login slides */
+/* --------------------------------------------------------------------------
+   9. Animations
+   -------------------------------------------------------------------------- */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-in-up {
   animation: fadeInUp 300ms ease-out;
+}
+
+/* --------------------------------------------------------------------------
+   10. Form Focus States
+   -------------------------------------------------------------------------- */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   11. Scrollbar Styles
+   -------------------------------------------------------------------------- */
+/* Transparent scrollbar - no background/track */
+.scrollbar-transparent::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-transparent::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 30%, transparent);
+  border-radius: 3px;
+}
+
+.scrollbar-transparent::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 50%, transparent);
+}
+
+/* Firefox */
+.scrollbar-transparent {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 30%, transparent) transparent;
 }

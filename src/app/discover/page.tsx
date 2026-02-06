@@ -25,7 +25,6 @@ export default function DiscoverPage() {
   const [causes, setCauses] = useState<string[]>(["Democracy & Governance", "Open Data & Transparency"]);
   const [availability, setAvailability] = useState<string[]>(["10–20 hrs/wk"]);
   const [collabTypes, setCollabTypes] = useState<string[]>(["Co‑founder"]);
-  const [projectStages, setProjectStages] = useState<string[]>(["Idea"]);
   const [languages, setLanguages] = useState<string[]>(["English"]);
   const [remotePref, setRemotePref] = useState<string[]>(["Remote"]);
   const [timezone, setTimezone] = useState<string[]>(["±3h"]);
@@ -283,16 +282,8 @@ export default function DiscoverPage() {
               <div>
                 <div className="mb-1 opacity-80">What I can contribute</div>
                 <div className="flex gap-2 flex-wrap">
-                  {["Volunteering", "Mentorship", "Advising", "Funding", "Network"].map((t) => (
+                  {["Volunteering", "Mentorship", "Advising", "Network"].map((t) => (
                     <Chip key={t} label={t} active={contributions.includes(t)} onClick={() => toggle(contributions, t, setContributions)} />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="mb-1 opacity-80">Project stage</div>
-                <div className="flex gap-2 flex-wrap">
-                  {["Idea", "Prototype", "MVP", "Launched"].map((st) => (
-                    <Chip key={st} label={st} active={projectStages.includes(st)} onClick={() => toggle(projectStages, st, setProjectStages)} />
                   ))}
                 </div>
               </div>

@@ -1,33 +1,80 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { UserRound, AlertCircle, MapPin } from "lucide-react";
+import { UserRound, MapPin, Users, Calendar, Video } from "lucide-react";
 import Image from "next/image";
 import { loadGoogleMaps } from "@/lib/google/maps-loader";
 import type { ProfileWithLocation } from "@/types/profile";
+import type { ProjectForMap } from "@/types/project";
+import type { EventForMap } from "@/types/event";
+import type { ChallengeForMap } from "@/types/challenge";
+import { formatEventDate } from "@/types/event";
+import { createChallengeMarkerContent } from "./challenge/ChallengeMarker";
+import { getCategoryInfo, getSeverityColor, getSeverityLabel } from "@/types/challenge";
 // Note: Using CSS media queries for dark mode instead of next-themes
+
+
 
 interface ExploreMapProps {
   profiles: ProfileWithLocation[];
+  projects?: ProjectForMap[];
+  events?: EventForMap[];
+  challenges?: ChallengeForMap[];
   invitedIds: Set<string>;
   onProfileClick?: (profile: ProfileWithLocation) => void;
+  onProjectClick?: (project: ProjectForMap) => void;
+  onEventClick?: (event: { id: string; title: string; location: { coordinates: { lat: number; lng: number }; displayName?: string }; startDateTime: string; endDateTime?: string; isOnline: boolean; rsvpCount: number; creatorId: string }) => void;
+  onChallengeClick?: (challenge: ChallengeForMap) => void;
+  onBoundsChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
+  centerOn?: { lat: number; lng: number } | null;
   className?: string;
 }
 
 export default function ExploreMap({ 
   profiles, 
+  projects = [],
+  events = [],
+  challenges = [],
   invitedIds, 
   onProfileClick,
+  onProjectClick,
+  onEventClick,
+  onChallengeClick,
+  onBoundsChange,
+  centerOn,
   className = "" 
 }: ExploreMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentZoom, setCurrentZoom] = useState<number>(3); // Track current zoom level
-  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const currentZoomRef = useRef<number>(3);
+  // ID-keyed marker maps for diffing (add new, remove stale, keep existing)
+  const profileMarkerMapRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const projectMarkerMapRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const eventMarkerMapRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const challengeMarkerMapRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  // Track whether the initial staggered animation has played per layer
+  const profilesRenderedRef = useRef(false);
+  const projectsRenderedRef = useRef(false);
+  const eventsRenderedRef = useRef(false);
+  const challengesRenderedRef = useRef(false);
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  
+  // Keep callback refs up to date (avoids including callbacks in effect deps)
+  useEffect(() => { onBoundsChangeRef.current = onBoundsChange; }, [onBoundsChange]);
+  const onProfileClickRef = useRef(onProfileClick);
+  const onProjectClickRef = useRef(onProjectClick);
+  const onEventClickRef = useRef(onEventClick);
+  const onChallengeClickRef = useRef(onChallengeClick);
+  useEffect(() => { onProfileClickRef.current = onProfileClick; }, [onProfileClick]);
+  useEffect(() => { onProjectClickRef.current = onProjectClick; }, [onProjectClick]);
+  useEffect(() => { onEventClickRef.current = onEventClick; }, [onEventClick]);
+  useEffect(() => { onChallengeClickRef.current = onChallengeClick; }, [onChallengeClick]);
   const [hoveredProfile, setHoveredProfile] = useState<ProfileWithLocation | null>(null);
+  const [hoveredProject, setHoveredProject] = useState<ProjectForMap | null>(null);
+  const [hoveredEvent, setHoveredEvent] = useState<EventForMap | null>(null);
+  const [hoveredChallenge, setHoveredChallenge] = useState<ChallengeForMap | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
 
 
@@ -82,23 +129,26 @@ export default function ExploreMap({
       
       google.maps.event.addListener(mapInstance, 'idle', () => {
         console.log('Map is idle and ready');
+        
+        // Report bounds to parent
+        if (onBoundsChangeRef.current) {
+          const bounds = mapInstance.getBounds();
+          if (bounds) {
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            onBoundsChangeRef.current({
+              north: ne.lat(),
+              south: sw.lat(),
+              east: ne.lng(),
+              west: sw.lng(),
+            });
+          }
+        }
       });
 
-      // Listen for zoom changes to update marker offsets (with debouncing)
+      // Track zoom level in ref (no state update = no marker re-creation on zoom)
       google.maps.event.addListener(mapInstance, 'zoom_changed', () => {
-        const newZoom = mapInstance.getZoom() || 3;
-        console.log('Zoom changed to:', newZoom);
-        
-        // Clear existing timeout
-        if (zoomTimeoutRef.current) {
-          clearTimeout(zoomTimeoutRef.current);
-        }
-        
-        // Debounce zoom changes to avoid excessive marker recreation
-        zoomTimeoutRef.current = setTimeout(() => {
-          setCurrentZoom(newZoom);
-          console.log('Zoom debounced, updating markers at zoom:', newZoom);
-        }, 300); // 300ms debounce
+        currentZoomRef.current = mapInstance.getZoom() || 3;
       });
       
       setMap(mapInstance);
@@ -108,21 +158,34 @@ export default function ExploreMap({
     }
   }, [isLoaded, map]);
 
+  // Center map on specific location when centerOn prop changes with smooth animation
+  useEffect(() => {
+    if (!map || !centerOn) return;
+    
+    // Smooth pan to location
+    map.panTo({ lat: centerOn.lat, lng: centerOn.lng });
+    
+    // Smooth zoom to a reasonable level if currently zoomed out too far
+    const currentZoom = map.getZoom() || 3;
+    if (currentZoom < 8) {
+      // Use setZoom with a delay after pan starts for smooth transition
+      // Longer delay (800ms) for a more gradual, visible animation
+      // Wider zoom (9) to show more context around the entity
+      setTimeout(() => {
+        map.setZoom(9);
+      }, 800);
+    }
+  }, [map, centerOn]);
 
 
   // Create pill content as HTML element (avatar only)
   const createPillContent = useCallback((profile: ProfileWithLocation) => {
     const pillDiv = document.createElement('div');
     
-    // Check profile quality
-    const isIncomplete = profile.qualityInfo ? !profile.qualityInfo.isQualityProfile : false;
-    const needsLocationUpdate = profile.location.needsUpdate;
-    
     pillDiv.className = `
       inline-flex items-center justify-center rounded-full 
       transition-all duration-300 hover:scale-105 hover:shadow-2xl
-      ${invitedIds.has(profile.id) ? 'opacity-50' : ''}
-      ${(isIncomplete || needsLocationUpdate) ? 'cursor-default' : 'cursor-pointer'}
+      cursor-pointer
     `;
     
     // Note: We don't disable pointer events here anymore - we handle clicks in the event listener instead
@@ -136,7 +199,7 @@ export default function ExploreMap({
     
     // Note: Don't set opacity here - let the animation handle it for staggered effect
 
-    // Avatar only
+    // Avatar only (no outline)
     const avatarSpan = document.createElement('span');
     avatarSpan.className = 'relative inline-flex';
     
@@ -164,20 +227,6 @@ export default function ExploreMap({
       avatarSpan.textContent = initials || '?';
     }
 
-    // Add emergency indicator for both incomplete profiles and location updates
-    if (isIncomplete || needsLocationUpdate) {
-      const indicator = document.createElement('div');
-      indicator.className = 'absolute -top-1 -right-1 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center';
-      indicator.style.width = '16px';
-      indicator.style.height = '16px';
-      indicator.style.fontSize = '10px';
-      indicator.style.fontWeight = 'bold';
-      indicator.style.opacity = '0.8'; // Increased opacity to 80% for better visibility
-      indicator.textContent = '!';
-      indicator.title = needsLocationUpdate ? 'Location needs update' : 'Incomplete Profile';
-      avatarSpan.appendChild(indicator);
-    }
-
     // Add hover event listeners (for all profiles to show information)
     pillDiv.addEventListener('mouseenter', () => {
       const rect = pillDiv.getBoundingClientRect();
@@ -196,218 +245,494 @@ export default function ExploreMap({
     pillDiv.appendChild(avatarSpan);
 
     return pillDiv;
-  }, [invitedIds]);
+  }, []);
 
-  // Utility function to handle overlapping markers
-  const resolveOverlappingCoordinates = useCallback((profiles: ProfileWithLocation[]) => {
-    const coordinateGroups = new Map<string, ProfileWithLocation[]>();
+  // Create project marker content (circular with users-round icon)
+  const createProjectMarkerContent = useCallback((project: ProjectForMap) => {
+    const container = document.createElement('div');
+    container.className = 'relative cursor-pointer';
     
-    // Calculate zoom-aware offset distance
-    // Lower zoom (zoomed out) = larger offset (need more separation to be visible)
-    // Higher zoom (zoomed in) = smaller offset (less separation needed)
-    const baseOffset = 0.03; // Increased by 300% (was 0.001, now 0.003)
-    const zoomFactor = Math.pow(2, 10 - currentZoom); // Inverted: larger when zoom is smaller
-    const OFFSET_DISTANCE = Math.max(0.03, Math.min(1, baseOffset * zoomFactor));
+    // Main marker circle - dark green background, no outline
+    const projectDiv = document.createElement('div');
+    projectDiv.className = `
+      inline-flex items-center justify-center rounded-full 
+      transition-all duration-300 hover:scale-110
+    `;
+    const size = 44;
+    projectDiv.style.width = `${size}px`;
+    projectDiv.style.height = `${size}px`;
+    projectDiv.style.backgroundColor = '#16a34a'; // Darker green (green-600)
+    projectDiv.style.opacity = '0';
+    projectDiv.style.transform = 'scale(0.8)';
+    projectDiv.style.boxShadow = '0 8px 20px -4px rgba(0, 0, 0, 0.4)';
     
-    console.log(`Zoom level: ${currentZoom}, Offset distance: ${OFFSET_DISTANCE} (~${Math.round(OFFSET_DISTANCE * 111000)}m)`);
+    // Users-round icon (Lucide) - smaller, dark icon
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', '#1f2937');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
     
-    // Group profiles by identical coordinates
-    profiles.forEach(profile => {
-      let coordinates = profile.location.coordinates;
-      let needsUpdate = false;
-      
-      // If no coordinates, place randomly on map with dashed border
-      if (!coordinates) {
-        const lat = (Math.random() - 0.5) * 140; // -70 to 70 latitude
-        const lng = (Math.random() - 0.5) * 360; // -180 to 180 longitude
-        coordinates = { lat, lng, accuracy: 'random' };
-        needsUpdate = true;
-      }
-      
-      // Update the profile's needsUpdate flag
-      profile.location.needsUpdate = needsUpdate;
-      
-      if (coordinates) {
-        const key = `${coordinates.lat.toFixed(4)},${coordinates.lng.toFixed(4)}`; // Less precision to catch more overlaps
-        if (!coordinateGroups.has(key)) {
-          coordinateGroups.set(key, []);
-        }
-        coordinateGroups.get(key)!.push({ 
-          ...profile, 
-          location: { ...profile.location, coordinates } 
-        });
-      }
+    // Users-round paths
+    const path1 = document.createElementNS(svgNS, 'path');
+    path1.setAttribute('d', 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2');
+    svg.appendChild(path1);
+    
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('cx', '9');
+    circle.setAttribute('cy', '7');
+    circle.setAttribute('r', '4');
+    svg.appendChild(circle);
+    
+    const path2 = document.createElementNS(svgNS, 'path');
+    path2.setAttribute('d', 'M22 21v-2a4 4 0 0 0-3-3.87');
+    svg.appendChild(path2);
+    
+    const path3 = document.createElementNS(svgNS, 'path');
+    path3.setAttribute('d', 'M16 3.13a4 4 0 0 1 0 7.75');
+    svg.appendChild(path3);
+    
+    projectDiv.appendChild(svg);
+    
+    // Hover events
+    container.addEventListener('mouseenter', () => {
+      const rect = container.getBoundingClientRect();
+      setHoverPosition({ 
+        x: rect.left + rect.width / 2, 
+        y: rect.top 
+      });
+      setHoveredProject(project);
+      setHoveredProfile(null);
     });
     
-    console.log('Coordinate groups found:', coordinateGroups.size);
-    coordinateGroups.forEach((group, key) => {
-      if (group.length > 1) {
-        console.log(`Location ${key} has ${group.length} users:`, group.map(p => p.name));
-      }
+    container.addEventListener('mouseleave', () => {
+      setHoveredProject(null);
+      setHoverPosition(null);
     });
     
-    // Apply small circular offsets to overlapping markers
-    const resolvedProfiles: (ProfileWithLocation & { resolvedCoordinates: { lat: number; lng: number } })[] = [];
+    container.appendChild(projectDiv);
     
-    coordinateGroups.forEach((groupProfiles, key) => {
-      if (groupProfiles.length === 1) {
-        // Single marker - no offset needed
-        const profile = groupProfiles[0];
-        resolvedProfiles.push({
-          ...profile,
-          resolvedCoordinates: profile.location.coordinates!
-        });
+    return { container, projectDiv };
+  }, []);
+
+  // Create event marker content (circular with calendar icon)
+  const createEventMarkerContent = useCallback((event: EventForMap) => {
+    const container = document.createElement('div');
+    container.className = 'relative cursor-pointer';
+    
+    // Main marker circle - darker blue background, no outline
+    const eventDiv = document.createElement('div');
+    eventDiv.className = `
+      inline-flex items-center justify-center rounded-full 
+      transition-all duration-300 hover:scale-110
+    `;
+    const size = 44;
+    eventDiv.style.width = `${size}px`;
+    eventDiv.style.height = `${size}px`;
+    eventDiv.style.backgroundColor = '#2563eb'; // Darker blue (blue-600)
+    eventDiv.style.opacity = '0';
+    eventDiv.style.transform = 'scale(0.8)';
+    eventDiv.style.boxShadow = '0 8px 20px -4px rgba(0, 0, 0, 0.4)';
+    
+    // Calendar icon (Lucide) - smaller, dark icon
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', '#1f2937');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    
+    // Calendar paths
+    const path1 = document.createElementNS(svgNS, 'path');
+    path1.setAttribute('d', 'M8 2v4');
+    svg.appendChild(path1);
+    
+    const path2 = document.createElementNS(svgNS, 'path');
+    path2.setAttribute('d', 'M16 2v4');
+    svg.appendChild(path2);
+    
+    const rect = document.createElementNS(svgNS, 'rect');
+    rect.setAttribute('width', '18');
+    rect.setAttribute('height', '18');
+    rect.setAttribute('x', '3');
+    rect.setAttribute('y', '4');
+    rect.setAttribute('rx', '2');
+    svg.appendChild(rect);
+    
+    const path3 = document.createElementNS(svgNS, 'path');
+    path3.setAttribute('d', 'M3 10h18');
+    svg.appendChild(path3);
+    
+    eventDiv.appendChild(svg);
+    
+    // Hover events
+    container.addEventListener('mouseenter', () => {
+      const rect = container.getBoundingClientRect();
+      setHoverPosition({ 
+        x: rect.left + rect.width / 2, 
+        y: rect.top 
+      });
+      setHoveredEvent(event);
+      setHoveredProfile(null);
+      setHoveredProject(null);
+    });
+    
+    container.addEventListener('mouseleave', () => {
+      setHoveredEvent(null);
+      setHoverPosition(null);
+    });
+    
+    container.appendChild(eventDiv);
+    
+    return { container, eventDiv };
+  }, []);
+
+  // Resolve overlapping coordinates within a set of items (reads zoom from ref, stable callback)
+  const resolveOverlaps = useCallback((
+    items: { id: string; lat: number; lng: number }[]
+  ): Map<string, { lat: number; lng: number }> => {
+    const resolved = new Map<string, { lat: number; lng: number }>();
+    const groups = new Map<string, { id: string; lat: number; lng: number }[]>();
+    const MAX_OFFSET = 0.002;
+    const MIN_ZOOM = 8;
+    const zoom = currentZoomRef.current;
+
+    for (const item of items) {
+      const key = `${item.lat.toFixed(4)},${item.lng.toFixed(4)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    }
+
+    for (const [, group] of groups) {
+      if (group.length === 1) {
+        resolved.set(group[0].id, { lat: group[0].lat, lng: group[0].lng });
+      } else if (zoom < MIN_ZOOM) {
+        for (const item of group) resolved.set(item.id, { lat: item.lat, lng: item.lng });
       } else {
-        // Multiple markers - apply circular offsets
-        console.log(`Applying offsets for ${groupProfiles.length} users at ${key}`);
-        groupProfiles.forEach((profile, index) => {
-          const baseCoords = profile.location.coordinates!;
-          
-          if (index === 0) {
-            // First marker stays at original position
-            resolvedProfiles.push({
-              ...profile,
-              resolvedCoordinates: baseCoords
-            });
-            console.log(`${profile.name}: Original position (${baseCoords.lat}, ${baseCoords.lng})`);
-          } else {
-            // Subsequent markers get small circular offsets
-            const angle = (2 * Math.PI * index) / groupProfiles.length;
-            const offsetLat = baseCoords.lat + (OFFSET_DISTANCE * Math.sin(angle));
-            const offsetLng = baseCoords.lng + (OFFSET_DISTANCE * Math.cos(angle));
-            
-            resolvedProfiles.push({
-              ...profile,
-              resolvedCoordinates: { lat: offsetLat, lng: offsetLng }
-            });
-            console.log(`${profile.name}: Offset position (${offsetLat}, ${offsetLng}) - angle: ${angle}`);
-          }
-        });
+        const base = group[0];
+        const scale = Math.pow(2, 15 - zoom);
+        const r = Math.min(MAX_OFFSET * scale, MAX_OFFSET);
+        for (let i = 0; i < group.length; i++) {
+          const a = (2 * Math.PI * i) / group.length;
+          resolved.set(group[i].id, {
+            lat: base.lat + r * Math.sin(a),
+            lng: base.lng + r * Math.cos(a),
+          });
+        }
       }
-    });
-    
-    return resolvedProfiles;
-  }, [currentZoom]);
+    }
 
-  // Add user markers using AdvancedMarkerElement
+    return resolved;
+  }, []);
+
+  // --- Profile markers (diffed by ID) ---
   useEffect(() => {
     if (!map || !isLoaded) return;
 
-    const addMarkers = async () => {
-      // Clear existing markers
-      markersRef.current.forEach(marker => marker.map = null);
-      markersRef.current = [];
+    const markerMap = profileMarkerMapRef.current;
+    const isInitial = !profilesRenderedRef.current;
+    const currentIds = new Set(profiles.map(p => p.id));
 
-      console.log('Adding markers for', profiles.length, 'profiles');
+    // Remove stale markers synchronously
+    for (const [id, marker] of markerMap) {
+      if (!currentIds.has(id)) { marker.map = null; markerMap.delete(id); }
+    }
 
-      // Import the marker library
+    // Find profiles that still need markers
+    const newProfiles = profiles.filter(p => !markerMap.has(p.id));
+    if (newProfiles.length === 0) {
+      if (profiles.length > 0) profilesRenderedRef.current = true;
+      return;
+    }
+
+    // Resolve intra-layer overlaps
+    const coordItems = profiles
+      .filter(p => p.location?.coordinates)
+      .map(p => ({ id: p.id, lat: p.location.coordinates!.lat, lng: p.location.coordinates!.lng }));
+    const resolved = resolveOverlaps(coordItems);
+
+    let cancelled = false;
+    (async () => {
       const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
-      console.log('AdvancedMarkerElement imported successfully');
-      
-      // Resolve overlapping coordinates
-      const resolvedProfiles = resolveOverlappingCoordinates(profiles);
-      
-      // Get map center for distance-based animation ordering
-      const mapCenter = map.getCenter();
-      const centerLat = mapCenter?.lat() || 0;
-      const centerLng = mapCenter?.lng() || 0;
-      
-      // Sort profiles by distance from map center (closest first)
-      const sortedProfiles = resolvedProfiles.sort((a, b) => {
-        const distanceA = Math.sqrt(
-          Math.pow(a.resolvedCoordinates.lat - centerLat, 2) + 
-          Math.pow(a.resolvedCoordinates.lng - centerLng, 2)
-        );
-        const distanceB = Math.sqrt(
-          Math.pow(b.resolvedCoordinates.lat - centerLat, 2) + 
-          Math.pow(b.resolvedCoordinates.lng - centerLng, 2)
-        );
-        return distanceA - distanceB;
-      });
-      
-      console.log(`Animating ${sortedProfiles.length} markers from center (${centerLat.toFixed(4)}, ${centerLng.toFixed(4)})`);
-      
-      // Process each profile with resolved coordinates
-      let markerIndex = 0;
-      for (const profile of sortedProfiles) {
-        const coordinates = profile.resolvedCoordinates;
+      if (cancelled) return;
 
-        if (coordinates) {
-          try {
-            const content = createPillContent(profile);
-            console.log('Creating marker for', profile.name, 'at', coordinates);
-            
-            const marker = new AdvancedMarkerElement({
-              map,
-              position: { lat: coordinates.lat, lng: coordinates.lng },
-              content,
-              title: profile.name,
-            });
+      // Sort by distance from center for staggered ripple animation on first render
+      const center = map.getCenter();
+      const cLat = center?.lat() || 0;
+      const cLng = center?.lng() || 0;
+      const sorted = isInitial
+        ? [...newProfiles].sort((a, b) => {
+            const ca = resolved.get(a.id) || a.location.coordinates;
+            const cb = resolved.get(b.id) || b.location.coordinates;
+            if (!ca || !cb) return 0;
+            return Math.hypot(ca.lat - cLat, ca.lng - cLng) - Math.hypot(cb.lat - cLat, cb.lng - cLng);
+          })
+        : newProfiles;
 
-            // Add click handler (only for complete quality profiles)
-            marker.addListener('click', () => {
-              const isIncomplete = profile.qualityInfo ? !profile.qualityInfo.isQualityProfile : false;
-              const needsLocationUpdate = profile.location.needsUpdate;
-              
-              // Prevent clicks on incomplete profiles or those needing location updates
-              if (isIncomplete || needsLocationUpdate) {
-                console.log('Cannot interact with incomplete/location-update profile:', profile.name);
-                return;
-              }
-              
-              if (onProfileClick) {
-                onProfileClick(profile);
-              } else {
-                window.location.href = `/profiles?user=${encodeURIComponent(profile.id)}`;
-              }
-            });
+      let idx = 0;
+      for (const profile of sorted) {
+        if (cancelled) return;
+        const coords = resolved.get(profile.id) || profile.location.coordinates;
+        if (!coords) continue;
+        try {
+          const content = createPillContent(profile);
+          const marker = new AdvancedMarkerElement({
+            map,
+            position: { lat: coords.lat, lng: coords.lng },
+            content,
+            title: profile.name,
+          });
+          marker.addListener('click', () => {
+            if (onProfileClickRef.current) onProfileClickRef.current(profile);
+          });
+          markerMap.set(profile.id, marker);
 
-            markersRef.current.push(marker);
-            
-            // Animate pill in with center-based delay (faster for center users)
-            // Users closer to center animate faster, creating a ripple effect
-            const delay = markerIndex * 30; // Reduced to 30ms for faster animation
-            
-            // Determine final opacity based on profile quality and location status
-            const isIncomplete = profile.qualityInfo ? !profile.qualityInfo.isQualityProfile : false;
-            const needsLocationUpdate = profile.location.needsUpdate;
-            let finalOpacity = '1';
-            
-            // Unified opacity for both incomplete profiles and location updates
-            if (isIncomplete || needsLocationUpdate) {
-              finalOpacity = '0.2'; // 20% opacity for both cases
-            }
-            
+          // Staggered fade-in on initial load, instant on subsequent diffs
+          if (isInitial) {
             setTimeout(() => {
               if (marker.content instanceof HTMLElement) {
-                marker.content.style.opacity = finalOpacity;
+                marker.content.style.opacity = '1';
                 marker.content.style.transform = 'scale(1)';
               }
-            }, delay);
-            
-            console.log('Marker created successfully for', profile.name);
-          } catch (markerError) {
-            console.error('Failed to create marker for', profile.name, markerError);
+            }, idx * 30);
+          } else if (content instanceof HTMLElement) {
+            content.style.opacity = '1';
+            content.style.transform = 'scale(1)';
           }
+          idx++;
+        } catch (err) {
+          console.error('Failed to create profile marker:', err);
         }
-        markerIndex++;
       }
-    };
+      profilesRenderedRef.current = true;
+    })();
 
-    addMarkers();
+    return () => { cancelled = true; };
+  }, [map, profiles, isLoaded, createPillContent, resolveOverlaps]);
 
-    // Cleanup function
+  // --- Project markers (diffed by ID) ---
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const markerMap = projectMarkerMapRef.current;
+    const isInitial = !projectsRenderedRef.current;
+    const currentIds = new Set(projects.map(p => p.id));
+
+    for (const [id, marker] of markerMap) {
+      if (!currentIds.has(id)) { marker.map = null; markerMap.delete(id); }
+    }
+
+    const newProjects = projects.filter(p => !markerMap.has(p.id));
+    if (newProjects.length === 0) {
+      if (projects.length > 0) projectsRenderedRef.current = true;
+      return;
+    }
+
+    const coordItems = projects
+      .filter(p => p.location?.coordinates)
+      .map(p => ({ id: p.id, lat: p.location.coordinates.lat, lng: p.location.coordinates.lng }));
+    const resolved = resolveOverlaps(coordItems);
+
+    let cancelled = false;
+    (async () => {
+      const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+      if (cancelled) return;
+
+      let idx = 0;
+      for (const project of newProjects) {
+        if (cancelled) return;
+        const coords = resolved.get(project.id) || project.location?.coordinates;
+        if (!coords) continue;
+        try {
+          const { container, projectDiv } = createProjectMarkerContent(project);
+          const marker = new AdvancedMarkerElement({
+            map,
+            position: { lat: coords.lat, lng: coords.lng },
+            content: container,
+            title: project.name,
+            zIndex: 1000,
+          });
+          marker.addListener('click', () => {
+            if (onProjectClickRef.current) onProjectClickRef.current(project);
+          });
+          markerMap.set(project.id, marker);
+
+          if (isInitial) {
+            setTimeout(() => { projectDiv.style.opacity = '1'; projectDiv.style.transform = 'scale(1)'; }, idx * 100 + 200);
+          } else {
+            projectDiv.style.opacity = '1';
+            projectDiv.style.transform = 'scale(1)';
+          }
+          idx++;
+        } catch (err) {
+          console.error('Failed to create project marker:', err);
+        }
+      }
+      projectsRenderedRef.current = true;
+    })();
+
+    return () => { cancelled = true; };
+  }, [map, projects, isLoaded, createProjectMarkerContent, resolveOverlaps]);
+
+  // --- Event markers (diffed by ID) ---
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const markerMap = eventMarkerMapRef.current;
+    const isInitial = !eventsRenderedRef.current;
+    const currentIds = new Set(events.map(e => e.id));
+
+    for (const [id, marker] of markerMap) {
+      if (!currentIds.has(id)) { marker.map = null; markerMap.delete(id); }
+    }
+
+    const newEvents = events.filter(e => !markerMap.has(e.id));
+    if (newEvents.length === 0) {
+      if (events.length > 0) eventsRenderedRef.current = true;
+      return;
+    }
+
+    const coordItems = events
+      .filter(e => e.location?.coordinates)
+      .map(e => ({ id: e.id, lat: e.location.coordinates.lat, lng: e.location.coordinates.lng }));
+    const resolved = resolveOverlaps(coordItems);
+
+    let cancelled = false;
+    (async () => {
+      const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+      if (cancelled) return;
+
+      let idx = 0;
+      for (const event of newEvents) {
+        if (cancelled) return;
+        const coords = resolved.get(event.id) || event.location?.coordinates;
+        if (!coords) continue;
+        try {
+          const { container, eventDiv } = createEventMarkerContent(event);
+          const marker = new AdvancedMarkerElement({
+            map,
+            position: { lat: coords.lat, lng: coords.lng },
+            content: container,
+            title: event.title,
+            zIndex: 900,
+          });
+          marker.addListener('click', () => {
+            if (onEventClickRef.current) onEventClickRef.current(event);
+          });
+          markerMap.set(event.id, marker);
+
+          if (isInitial) {
+            setTimeout(() => { eventDiv.style.opacity = '1'; eventDiv.style.transform = 'scale(1)'; }, idx * 80 + 300);
+          } else {
+            eventDiv.style.opacity = '1';
+            eventDiv.style.transform = 'scale(1)';
+          }
+          idx++;
+        } catch (err) {
+          console.error('Failed to create event marker:', err);
+        }
+      }
+      eventsRenderedRef.current = true;
+    })();
+
+    return () => { cancelled = true; };
+  }, [map, events, isLoaded, createEventMarkerContent, resolveOverlaps]);
+
+  // --- Challenge markers (diffed by ID) ---
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const markerMap = challengeMarkerMapRef.current;
+    const isInitial = !challengesRenderedRef.current;
+    const currentIds = new Set(challenges.map(c => c.id));
+
+    for (const [id, marker] of markerMap) {
+      if (!currentIds.has(id)) { marker.map = null; markerMap.delete(id); }
+    }
+
+    const newChallenges = challenges.filter(c => !markerMap.has(c.id));
+    if (newChallenges.length === 0) {
+      if (challenges.length > 0) challengesRenderedRef.current = true;
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+      if (cancelled) return;
+
+      let idx = 0;
+      for (const challenge of newChallenges) {
+        if (cancelled) return;
+        const coords = { lat: challenge.latitude, lng: challenge.longitude };
+        try {
+          const { container, markerDiv } = createChallengeMarkerContent(
+            challenge,
+            (hovered) => {
+              if (hovered) {
+                const rect = container.getBoundingClientRect();
+                setHoverPosition({ x: rect.left + rect.width / 2, y: rect.top });
+                setHoveredChallenge(hovered);
+                setHoveredProfile(null);
+                setHoveredProject(null);
+                setHoveredEvent(null);
+              } else {
+                setHoveredChallenge(null);
+                setHoverPosition(null);
+              }
+            }
+          );
+          const marker = new AdvancedMarkerElement({
+            map,
+            position: coords,
+            content: container,
+            title: challenge.title,
+            zIndex: 1100,
+          });
+          marker.addListener('click', () => {
+            if (onChallengeClickRef.current) onChallengeClickRef.current(challenge);
+          });
+          markerMap.set(challenge.id, marker);
+
+          if (isInitial) {
+            setTimeout(() => { markerDiv.style.opacity = '1'; markerDiv.style.transform = 'scale(1)'; }, idx * 60 + 400);
+          } else {
+            markerDiv.style.opacity = '1';
+            markerDiv.style.transform = 'scale(1)';
+          }
+          idx++;
+        } catch (err) {
+          console.error('Failed to create challenge marker:', err);
+        }
+      }
+      challengesRenderedRef.current = true;
+    })();
+
+    return () => { cancelled = true; };
+  }, [map, challenges, isLoaded]);
+
+  // Cleanup all markers on unmount
+  useEffect(() => {
     return () => {
-      markersRef.current.forEach(marker => marker.map = null);
-      markersRef.current = [];
-      
-      // Clear any pending zoom timeout
-      if (zoomTimeoutRef.current) {
-        clearTimeout(zoomTimeoutRef.current);
-        zoomTimeoutRef.current = null;
-      }
+      for (const marker of profileMarkerMapRef.current.values()) marker.map = null;
+      profileMarkerMapRef.current.clear();
+      for (const marker of projectMarkerMapRef.current.values()) marker.map = null;
+      projectMarkerMapRef.current.clear();
+      for (const marker of eventMarkerMapRef.current.values()) marker.map = null;
+      eventMarkerMapRef.current.clear();
+      for (const marker of challengeMarkerMapRef.current.values()) marker.map = null;
+      challengeMarkerMapRef.current.clear();
     };
-  }, [map, profiles, isLoaded, createPillContent, onProfileClick, resolveOverlappingCoordinates, currentZoom]);
+  }, []);
 
   if (error) {
     return (
@@ -438,8 +763,8 @@ export default function ExploreMap({
   }
 
   return (
-    <div className={`relative w-full h-full ${className}`}>
-      <div ref={mapRef} className="w-full h-full" />
+    <div className={`relative w-full h-full ${className}`} style={{ height: '100%' }}>
+      <div ref={mapRef} className="w-full h-full" style={{ height: '100%' }} />
       
       {/* Profile Preview on Hover */}
       {hoveredProfile && hoverPosition && (
@@ -452,8 +777,8 @@ export default function ExploreMap({
           }}
         >
           <div className="bg-[color:var(--background)] border border-divider rounded-2xl p-4 shadow-2xl max-w-xs animate-in fade-in duration-200">
-            {/* Bigger Profile Picture */}
-            <div className="flex flex-col items-center text-center mb-3">
+            {/* Profile Picture and Name */}
+            <div className="flex flex-col items-center text-center">
               {hoveredProfile.avatarUrl ? (
                 <Image 
                   src={hoveredProfile.avatarUrl} 
@@ -472,39 +797,193 @@ export default function ExploreMap({
             
             {/* Bio */}
             {hoveredProfile.bio && (
-              <div className="text-xs opacity-80 leading-relaxed">
+              <div className="mt-3 text-xs opacity-80 leading-relaxed text-center">
                 {hoveredProfile.bio.length > 150 
                   ? hoveredProfile.bio.substring(0, 150) + '...' 
                   : hoveredProfile.bio
                 }
               </div>
             )}
+          </div>
+        </div>
+      )}
+      
+      {/* Project Preview on Hover */}
+      {hoveredProject && hoverPosition && (
+        <div 
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: hoverPosition.x,
+            top: hoverPosition.y - 10,
+            transform: 'translateX(-50%) translateY(-100%)'
+          }}
+        >
+          <div className="bg-[color:var(--background)] border-2 border-[#EB5E28] rounded-2xl p-4 shadow-2xl max-w-xs animate-in fade-in duration-200">
+            {/* Project Logo and Name */}
+            <div className="flex items-center gap-3 mb-3">
+              {hoveredProject.logoUrl ? (
+                <Image 
+                  src={hoveredProject.logoUrl} 
+                  alt={hoveredProject.name} 
+                  width={48}
+                  height={48}
+                  className="h-12 w-12 rounded-full object-cover border-2 border-[#EB5E28]" 
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-full bg-[#252422] border-2 border-[#EB5E28] flex items-center justify-center">
+                  <span className="text-[#FFFCF2] font-bold">
+                    {hoveredProject.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div>
+                <div className="font-bold text-sm">{hoveredProject.name}</div>
+                <div className="text-xs opacity-60 flex items-center gap-1">
+                  <Users className="size-3" />
+                  {hoveredProject.memberCount || 0} members
+                </div>
+              </div>
+            </div>
             
-            {/* Quality and Location status indicators */}
-            <div className="mt-2 space-y-1">
-              {/* Profile completion status */}
-              {hoveredProfile.qualityInfo && !hoveredProfile.qualityInfo.isQualityProfile && (
-                <div className="text-xs text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1">
-                  <AlertCircle className="size-3" />
-                  <span>Incomplete Profile</span>
+            {/* Location */}
+            {hoveredProject.location?.displayName && (
+              <div className="text-xs opacity-70 flex items-center gap-1">
+                <MapPin className="size-3" />
+                {hoveredProject.location.displayName}
+              </div>
+            )}
+            
+            {/* Click hint */}
+            <div className="mt-3 pt-2 border-t border-divider text-xs text-[#EB5E28] font-medium text-center">
+              Click to view project
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Event Preview on Hover */}
+      {hoveredEvent && hoverPosition && (
+        <div 
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: hoverPosition.x,
+            top: hoverPosition.y - 10,
+            transform: 'translateX(-50%) translateY(-100%)'
+          }}
+        >
+          <div className="bg-[color:var(--background)] border-2 border-[color:var(--accent)] rounded-2xl p-4 shadow-2xl max-w-xs animate-in fade-in duration-200">
+            {/* Event Title and Date */}
+            <div className="mb-3">
+              <div className="font-bold text-sm mb-1">{hoveredEvent.title}</div>
+              <div className="text-xs opacity-70 flex items-center gap-1">
+                <Calendar className="size-3" />
+                {formatEventDate(hoveredEvent.startDateTime, hoveredEvent.endDateTime)}
+              </div>
+            </div>
+            
+            {/* Location / Online indicator */}
+            <div className="flex items-center gap-2 text-xs">
+              {hoveredEvent.isOnline ? (
+                <div className="flex items-center gap-1 text-blue-500">
+                  <Video className="size-3" />
+                  <span>Online Event</span>
                 </div>
-              )}
-              
-              {/* Location status */}
-              {hoveredProfile.location.needsUpdate && (
-                <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center justify-center gap-1">
+              ) : hoveredEvent.location?.displayName ? (
+                <div className="flex items-center gap-1 opacity-70">
                   <MapPin className="size-3" />
-                  <span>Location needs update</span>
+                  <span>{hoveredEvent.location.displayName}</span>
                 </div>
-              )}
-              
-              {/* Quality profile indicator */}
-              {hoveredProfile.qualityInfo && hoveredProfile.qualityInfo.isQualityProfile && !hoveredProfile.location.needsUpdate && (
-                <div className="text-xs text-green-600 dark:text-green-400 flex items-center justify-center gap-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  Quality Profile
-                </div>
-              )}
+              ) : null}
+            </div>
+            
+            {/* RSVP count */}
+            {hoveredEvent.rsvpCount > 0 && (
+              <div className="mt-2 text-xs text-[color:var(--accent)] flex items-center gap-1">
+                <Users className="size-3" />
+                {hoveredEvent.rsvpCount} {hoveredEvent.rsvpCount === 1 ? 'person' : 'people'} going
+              </div>
+            )}
+            
+            {/* Click hint */}
+            <div className="mt-3 pt-2 border-t border-divider text-xs text-[color:var(--accent)] font-medium text-center">
+              Click to view event
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Challenge Preview on Hover */}
+      {hoveredChallenge && hoverPosition && (
+        <div 
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: hoverPosition.x,
+            top: hoverPosition.y - 10,
+            transform: 'translateX(-50%) translateY(-100%)'
+          }}
+        >
+          <div className="bg-[color:var(--background)] border-2 rounded-2xl p-4 shadow-2xl max-w-xs animate-in fade-in duration-200"
+               style={{ borderColor: getCategoryInfo(hoveredChallenge.category).color }}
+          >
+            {/* Category Badge */}
+            <div className="flex items-center gap-2 mb-2">
+              <span 
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                style={{ 
+                  backgroundColor: `${getCategoryInfo(hoveredChallenge.category).color}20`, 
+                  color: getCategoryInfo(hoveredChallenge.category).color 
+                }}
+              >
+                {getCategoryInfo(hoveredChallenge.category).label}
+              </span>
+              <span 
+                className="text-xs font-medium"
+                style={{ color: getSeverityColor(hoveredChallenge.severity) }}
+              >
+                {getSeverityLabel(hoveredChallenge.severity)}
+              </span>
+            </div>
+            
+            {/* Title */}
+            <div className="font-bold text-sm mb-2">{hoveredChallenge.title}</div>
+            
+            {/* Summary */}
+            <p className="text-xs opacity-80 leading-relaxed mb-2">
+              {hoveredChallenge.summary.length > 120 
+                ? hoveredChallenge.summary.substring(0, 120) + '...' 
+                : hoveredChallenge.summary}
+            </p>
+            
+            {/* Location */}
+            <div className="flex items-center gap-1 text-xs opacity-60 mb-2">
+              <MapPin className="w-3 h-3" />
+              {hoveredChallenge.location_name}
+            </div>
+            
+            {/* Skills */}
+            {hoveredChallenge.skills_needed && hoveredChallenge.skills_needed.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {hoveredChallenge.skills_needed.slice(0, 3).map((skill, idx) => (
+                  <span 
+                    key={idx}
+                    className="px-1.5 py-0.5 bg-[var(--muted)]/30 rounded text-[10px]"
+                  >
+                    {skill}
+                  </span>
+                ))}
+                {hoveredChallenge.skills_needed.length > 3 && (
+                  <span className="px-1.5 py-0.5 text-[10px] opacity-60">
+                    +{hoveredChallenge.skills_needed.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Click hint */}
+            <div className="mt-3 pt-2 border-t border-divider text-xs font-medium text-center"
+                 style={{ color: getCategoryInfo(hoveredChallenge.category).color }}
+            >
+              Click to view challenge
             </div>
           </div>
         </div>

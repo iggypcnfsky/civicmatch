@@ -7,6 +7,18 @@
     {
       "path": "/api/cron/weekly-matching", 
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/ingest-challenges?secret=cron_f8f08d1a-3fa6-4ecd-a10e-0903ce12a3bc",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/discover-events?secret=cron_f8f08d1a-3fa6-4ecd-a10e-0903ce12a3bc",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/discover-events-eye?secret=cron_f8f08d1a-3fa6-4ecd-a10e-0903ce12a3bc",
+      "schedule": "0 3 * * 0"
     }
   ]
 }

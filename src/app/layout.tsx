@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { Suspense } from "react";
 import { AuthProvider } from "@/components/AuthProvider";
 import "./globals.css";
 import TopBar from "@/components/TopBar";
 import IncompleteProfileBanner from "@/components/IncompleteProfileBanner";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Civic Match",
@@ -40,12 +34,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} antialiased bg-background text-foreground`}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap" rel="stylesheet" />
+      </head>
+      <body className="google-sans-flex antialiased bg-background text-foreground">
         <AuthProvider>
-          <div className="min-h-dvh">
+          <div className="h-dvh flex flex-col">
             <IncompleteProfileBanner />
-            <TopBar />
-            <div className="pb-0">{children}</div>
+            <Suspense fallback={null}>
+              <TopBar />
+            </Suspense>
+            <div className="flex-1 pb-0">{children}</div>
           </div>
           <ServiceWorkerRegister />
           <Analytics />

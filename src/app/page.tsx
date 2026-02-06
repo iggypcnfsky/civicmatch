@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, Euro, Calendar, MessageCircle, Target, ArrowDown } from "lucide-react";
+import { Users, Calendar, MessageCircle, ArrowDown } from "lucide-react";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -40,12 +40,11 @@ export default function LandingPage() {
           </div>
           
           <h2 className="text-base md:text-lg font-medium max-w-2xl mx-auto leading-relaxed px-4">
-            The platform for civic founders to find co-founders, discover funding, and build impact together
+            The platform for civic founders to find co-founders and build impact together
           </h2>
           
           <p className="text-xs md:text-sm opacity-60 max-w-xl mx-auto leading-relaxed px-4">
-            Connect with changemakers who share your values. Access community-curated funding opportunities. 
-            Build the projects that matter.
+            Connect with changemakers who share your values. Discover collaborators aligned with your mission.
           </p>
 
           {/* CTAs */}
@@ -96,23 +95,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Feature 2: Funding Opportunities */}
-            <div className="text-center space-y-4">
-              <div className="flex justify-center">
-                <div className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-[color:var(--accent)]/10 flex items-center justify-center">
-                  <Euro className="size-6 md:size-7 text-[color:var(--accent)]" />
-                    </div>
-                  </div>
-              <h3 className="text-sm md:text-base font-semibold">
-                Access Funding Sources
-              </h3>
-              <p className="text-xs md:text-sm opacity-60 leading-relaxed">
-                Browse community-shared grants and funding opportunities. 
-                Express collaboration interest and connect with others pursuing similar funding.
-              </p>
-                  </div>
-
-            {/* Feature 3: Connect & Collaborate */}
+            {/* Feature 2: Connect & Collaborate */}
             <div className="text-center space-y-4">
               <div className="flex justify-center">
                 <div className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-[color:var(--accent)]/10 flex items-center justify-center">
@@ -158,7 +141,7 @@ export default function LandingPage() {
                   <div>
                 <h4 className="text-sm md:text-base font-medium mb-2">Explore the Community</h4>
                 <p className="text-xs md:text-sm opacity-60 leading-relaxed">
-                  Browse profiles on an interactive map or filter by specific criteria. Discover funding opportunities shared by the community.
+                  Browse profiles on an interactive map or filter by specific criteria. Find changemakers aligned with your mission.
                 </p>
               </div>
                   </div>
@@ -170,7 +153,7 @@ export default function LandingPage() {
                   <div>
                 <h4 className="text-sm md:text-base font-medium mb-2">Connect & Build</h4>
                 <p className="text-xs md:text-sm opacity-60 leading-relaxed">
-                  Reach out to potential co-founders, collaborate on funding applications, and build meaningful projects together.
+                  Reach out to potential co-founders and build meaningful partnerships together.
                     </p>
                   </div>
             </div>
@@ -185,8 +168,8 @@ export default function LandingPage() {
             Coming Soon
           </h3>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-10 md:gap-12 px-4">
-            <div className="text-center space-y-4 opacity-60">
+          <div className="flex justify-center px-4">
+            <div className="text-center space-y-4 opacity-60 max-w-xs">
               <div className="flex justify-center">
                 <div className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-[color:var(--foreground)]/5 flex items-center justify-center">
                   <Calendar className="size-6 md:size-7 opacity-60" />
@@ -195,18 +178,6 @@ export default function LandingPage() {
               <h3 className="text-sm md:text-base font-medium">Event Finder</h3>
               <p className="text-xs md:text-sm opacity-60 leading-relaxed">
                 Discover impact events, conferences, and workshops
-              </p>
-              </div>
-
-            <div className="text-center space-y-4 opacity-60">
-              <div className="flex justify-center">
-                <div className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-[color:var(--foreground)]/5 flex items-center justify-center">
-                  <Target className="size-6 md:size-7 opacity-60" />
-                </div>
-              </div>
-              <h3 className="text-sm md:text-base font-medium">Project Matching</h3>
-              <p className="text-xs md:text-sm opacity-60 leading-relaxed">
-                AI-powered suggestions for projects seeking collaborators
               </p>
             </div>
           </div>
