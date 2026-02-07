@@ -6,11 +6,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
-import { Users, UsersRound, FileText, Lightbulb, Briefcase, Calendar, Search, Eye, EyeOff, UserRound, MapPin, SlidersHorizontal } from "lucide-react";
+import { Users, UsersRound, FileText, Lightbulb, Briefcase, Calendar, Search, Eye, EyeOff, UserRound, MapPin, SlidersHorizontal, Presentation, Info } from "lucide-react";
 import type { DashboardTab, ProjectRow } from "@/types/project";
 
 const DASHBOARD_TABS: { id: DashboardTab; label: string; icon: React.ElementType }[] = [
-  { id: 'vision', label: 'Vision', icon: Eye },
+  { id: 'about', label: 'About', icon: Info },
+  { id: 'presentation', label: 'Presentation', icon: Presentation },
   { id: 'plan', label: 'Plan', icon: FileText },
   { id: 'research', label: 'Research', icon: Search },
   { id: 'ideas', label: 'Ideas', icon: Lightbulb },

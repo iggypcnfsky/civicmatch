@@ -8,6 +8,17 @@
 import type { ProfileWithLocation } from './profile';
 
 /**
+ * Onboarding slide for project presentation
+ */
+export interface OnboardingSlide {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  backgroundColor?: string;
+}
+
+/**
  * Project data structure (stored in JSONB `data` column)
  */
 export interface ProjectData {
@@ -29,6 +40,7 @@ export interface ProjectData {
     coordinates?: { lat: number; lng: number };
   };
   organizers?: string[]; // Array of user IDs designated as project organizers
+  onboardingSlides?: OnboardingSlide[]; // Custom onboarding presentation slides
 }
 
 /**
@@ -65,6 +77,7 @@ export interface Project {
   };
   createdAt?: string;
   members?: ProjectMember[];
+  onboardingSlides?: OnboardingSlide[];
 }
 
 /**
@@ -123,7 +136,8 @@ export interface ProjectWithLocation extends Project {
  * Dashboard tabs
  */
 export type DashboardTab = 
-  | 'vision'
+  | 'about'
+  | 'presentation'
   | 'plan'
   | 'research'
   | 'ideas'
@@ -150,6 +164,7 @@ export function mapProjectRowToProject(row: ProjectRow, members?: ProjectMember[
     location: data.location,
     createdAt: row.created_at,
     members,
+    onboardingSlides: data.onboardingSlides,
   };
 }
 

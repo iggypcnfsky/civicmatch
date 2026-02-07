@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import ExploreMap from "@/components/ExploreMap";
 import CreateEventModal from "@/components/CreateEventModal";
+import CreateProjectModal from "@/components/CreateProjectModal";
 import { ProfileQualityService } from "@/lib/services/ProfileQualityService";
 import type { ProfileWithLocation, ProfileRow } from "@/types/profile";
 import type { ProjectForMap } from "@/types/project";
@@ -54,6 +55,8 @@ export default function ExplorePage() {
   const [events, setEvents] = useState<CombinedEvent[]>([]);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("people");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProfile, setSelectedProfile] = useState<ProfileWithLocation | null>(null);
@@ -323,7 +326,7 @@ export default function ExplorePage() {
 
   async function fetchProjects() {
     try {
-      // Fetch projects with location coordinates
+      // Fetch all projects
       const { data, error } = await supabase
         .from("projects")
         .select("id, slug, data")
@@ -331,25 +334,22 @@ export default function ExplorePage() {
       
       if (error) throw error;
       
-      // Map to ProjectForMap format, filtering only those with coordinates
-      const projectsForMap: ProjectForMap[] = (data ?? [])
-        .filter((row: { data: { location?: { coordinates?: { lat: number; lng: number } } } }) => 
-          row.data?.location?.coordinates?.lat && row.data?.location?.coordinates?.lng
-        )
+      // Map all projects for the list
+      const allProjects: ProjectForMap[] = (data ?? [])
         .map((row: { id: string; slug: string; data: { title?: string; logoUrl?: string; stats?: { memberCount?: number }; location?: { city?: string; country?: string; coordinates?: { lat: number; lng: number } } } }) => ({
           id: row.id,
           slug: row.slug,
           name: row.data.title || "Untitled Project",
           logoUrl: row.data.logoUrl,
-          location: {
-            coordinates: row.data.location!.coordinates!,
+          location: row.data.location?.coordinates ? {
+            coordinates: row.data.location.coordinates,
             displayName: [row.data.location?.city, row.data.location?.country].filter(Boolean).join(", "),
-          },
+          } : { coordinates: { lat: 0, lng: 0 } }, // Placeholder for projects without location
           memberCount: row.data.stats?.memberCount || 0,
           members: [], // Will be populated on hover if needed
         }));
       
-      setProjects(projectsForMap);
+      setProjects(allProjects);
     } catch (err) {
       console.error("Error fetching projects:", err);
     }
@@ -553,7 +553,12 @@ export default function ExplorePage() {
     () => showPeople ? items.filter(p => p.location?.coordinates?.lat && p.location?.coordinates?.lng) : [],
     [showPeople, items]
   );
-  const projectsForMap = useMemo(() => showProjects ? projects : [], [showProjects, projects]);
+  const projectsForMap = useMemo(() => 
+    showProjects 
+      ? projects.filter(p => p.location?.coordinates?.lat && p.location?.coordinates?.lng && (p.location.coordinates.lat !== 0 || p.location.coordinates.lng !== 0)) 
+      : [], 
+    [showProjects, projects]
+  );
   const eventsForMap = useMemo((): EventForMap[] => {
     if (!showEvents) return [];
     // Filter events with coordinates and map to format expected by ExploreMap
@@ -1344,6 +1349,17 @@ export default function ExplorePage() {
             </button>
           </div>
         )}
+        {activeTab === "projects" && (
+          <div className="px-3 py-3 border-t border-divider bg-[color:var(--background)]">
+            <button
+              onClick={() => setShowCreateProjectModal(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[color:var(--accent)] text-[color:var(--background)] text-sm font-medium hover:brightness-110 transition-all"
+            >
+              <Plus className="size-4" />
+              <span>Create Project</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Create Event Modal */}
@@ -1353,6 +1369,27 @@ export default function ExplorePage() {
           onEventCreated={() => {
             setShowCreateEventModal(false);
             fetchEvents(); // Refresh events
+          }}
+        />
+      )}
+
+      {/* Success Message */}
+      {createSuccess && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg animate-in fade-in slide-in-from-bottom-2">
+          {createSuccess}
+        </div>
+      )}
+
+      {/* Create Project Modal */}
+      {showCreateProjectModal && (
+        <CreateProjectModal
+          onClose={() => setShowCreateProjectModal(false)}
+          onProjectCreated={() => {
+            setShowCreateProjectModal(false);
+            setCreateSuccess("Project created successfully!");
+            fetchProjects(); // Refresh projects
+            // Clear success message after 3 seconds
+            setTimeout(() => setCreateSuccess(null), 3000);
           }}
         />
       )}
