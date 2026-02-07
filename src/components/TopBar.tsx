@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Logo from "@/components/Logo";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
-import { Users, FileText, Lightbulb, Briefcase, Calendar, Search, Eye, EyeOff, UserRound, AlertTriangle, MapPin } from "lucide-react";
+import { Users, UsersRound, FileText, Lightbulb, Briefcase, Calendar, Search, Eye, EyeOff, UserRound, MapPin, SlidersHorizontal } from "lucide-react";
 import type { DashboardTab, ProjectRow } from "@/types/project";
 
 const DASHBOARD_TABS: { id: DashboardTab; label: string; icon: React.ElementType }[] = [
@@ -34,6 +34,8 @@ interface TopBarProps {
   onShowAll?: () => void;
   onHideAll?: () => void;
   onProfileClick?: () => void;
+  onToggleFilters?: () => void;
+  showFilters?: boolean;
 }
 
 export default function TopBar({ 
@@ -44,7 +46,9 @@ export default function TopBar({
   onToggleChallenges,
   onShowAll,
   onHideAll,
-  onProfileClick
+  onProfileClick,
+  onToggleFilters,
+  showFilters
 }: TopBarProps = {}) {
   const { status } = useAuth();
   const isAuthed = status === "authenticated";
@@ -140,8 +144,8 @@ export default function TopBar({
   if (isExplorePage) {
     return (
       <>
-        {/* Left Navbar - Sidebar area (30%) with background */}
-        <div className="fixed top-0 left-0 w-[30%] z-40 flex items-center justify-between px-4 py-2 bg-[color:var(--background)]">
+        {/* Left Navbar - Sidebar area (30%) with background - Hidden on mobile */}
+        <div className="hidden md:flex fixed top-0 left-0 w-[30%] z-40 items-center justify-between px-4 py-2 bg-[color:var(--background)]">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity" aria-label="Home">
             <Logo className="size-7 text-[color:var(--foreground)]" />
             <span className="font-semibold truncate hidden md:inline text-[color:var(--foreground)]">Civic Match</span>
@@ -163,104 +167,129 @@ export default function TopBar({
           </button>
         </div>
 
-        {/* Right Navbar - Map area (70%) without background, just filter buttons */}
+        {/* Mobile Header - Logo + Filter + Avatar - Full width on mobile */}
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-[color:var(--background)] border-b border-divider">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity" aria-label="Home">
+            <Logo className="size-7 text-[color:var(--foreground)]" />
+            <span className="font-semibold truncate text-[color:var(--foreground)]">Civic Match</span>
+          </Link>
+          
+          <div className="flex items-center gap-2">
+            {/* Filter button - mobile only */}
+            {mapFilters && onToggleFilters && (
+              <button
+                onClick={onToggleFilters}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-all border ${
+                  showFilters 
+                    ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-[color:var(--accent)]' 
+                    : 'bg-[color:var(--muted)]/10 text-[color:var(--foreground)] border-divider'
+                }`}
+                aria-label="Toggle filters"
+              >
+                <SlidersHorizontal className="size-4" />
+              </button>
+            )}
+            
+            {/* Avatar in mobile navbar */}
+            <button 
+              onClick={onProfileClick}
+              className="block rounded-full p-0.5 hover:bg-[color:var(--muted)]/30 transition-colors"
+              aria-label="Profile"
+            >
+              <span className="h-9 w-9 rounded-full overflow-hidden border flex-shrink-0 block border-divider">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="block w-full h-full bg-[color:var(--muted)]/60" />
+                )}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right Navbar - Map area (70%) without background, just filter buttons - Hidden on mobile */}
         {mapFilters && (
           <div 
-            className="fixed z-40 flex items-center justify-end px-4 py-2"
+            className="hidden md:flex fixed z-40 items-center justify-end px-4 py-2 bg-transparent"
             style={{ 
               top: 0, 
               left: '30%', 
               right: 0,
-              background: 'transparent',
               pointerEvents: 'none'
             }}
           >
-            <div className="flex items-center gap-3" style={{ pointerEvents: 'auto' }}>
-              {/* Map Filters Label */}
-              <span className="text-xs font-medium text-[color:var(--muted-foreground)] hidden lg:inline">
-                Map Filters:
-              </span>
-              
-              {/* Filter Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onTogglePeople}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                    mapFilters.showPeople 
-                      ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-[color:var(--accent)]' 
-                      : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
-                  }`}
-                  title="Toggle People"
-                >
-                  <UserRound className="size-3.5" />
-                  <span className="hidden sm:inline">People</span>
-                </button>
-                <button
-                  onClick={onToggleProjects}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                    mapFilters.showProjects 
-                      ? 'bg-green-500 text-gray-900 border-green-500' 
-                      : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
-                  }`}
-                  title="Toggle Projects"
-                >
-                  <Briefcase className="size-3.5" />
-                  <span className="hidden sm:inline">Projects</span>
-                </button>
-                <button
-                  onClick={onToggleEvents}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                    mapFilters.showEvents 
-                      ? 'bg-blue-500 text-gray-900 border-blue-500' 
-                      : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
-                  }`}
-                  title="Toggle Events"
-                >
-                  <Calendar className="size-3.5" />
-                  <span className="hidden sm:inline">Events</span>
-                </button>
-                <button
-                  onClick={onToggleChallenges}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                    mapFilters.showChallenges 
-                      ? 'bg-amber-400 text-gray-900 border-amber-400' 
-                      : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
-                  }`}
-                  title="Toggle Civic Challenges"
-                >
-                  <AlertTriangle className="size-3.5" />
-                  <span className="hidden sm:inline">Challenges</span>
-                </button>
-              </div>
+            <div className="flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
+              {/* Filter Buttons - Circular icons only */}
+              <button
+                onClick={onTogglePeople}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-all border ${
+                  mapFilters.showPeople 
+                    ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-[color:var(--accent)]' 
+                    : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
+                }`}
+                title="Toggle People"
+              >
+                <UserRound className="size-4" />
+              </button>
+              <button
+                onClick={onToggleProjects}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-all border ${
+                  mapFilters.showProjects 
+                    ? 'bg-green-500 text-gray-900 border-green-500' 
+                    : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
+                }`}
+                title="Toggle Projects"
+              >
+                <UsersRound className="size-4" />
+              </button>
+              <button
+                onClick={onToggleEvents}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-all border ${
+                  mapFilters.showEvents 
+                    ? 'bg-blue-500 text-gray-900 border-blue-500' 
+                    : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
+                }`}
+                title="Toggle Events"
+              >
+                <Calendar className="size-4" />
+              </button>
+              <button
+                onClick={onToggleChallenges}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-all border ${
+                  mapFilters.showChallenges 
+                    ? 'bg-amber-400 text-gray-900 border-amber-400' 
+                    : 'bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider'
+                }`}
+                title="Toggle News"
+              >
+                <Eye className="size-4" />
+              </button>
               
               {/* Divider */}
-              <div className="w-px h-6 bg-divider hidden sm:block" />
+              <div className="w-px h-6 bg-divider mx-1" />
               
-              {/* Show All / Hide All Button */}
+              {/* Show All / Hide All Button - Circular icon only */}
               {(() => {
                 const allVisible = mapFilters.showPeople && mapFilters.showProjects && mapFilters.showEvents && mapFilters.showChallenges;
-                const someVisible = mapFilters.showPeople || mapFilters.showProjects || mapFilters.showEvents || mapFilters.showChallenges;
                 
                 if (allVisible) {
                   return (
                     <button
                       onClick={onHideAll}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50"
+                      className="flex items-center justify-center w-9 h-9 rounded-full transition-all border bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50"
                       title="Hide all layers"
                     >
-                      <EyeOff className="size-3.5" />
-                      <span className="hidden sm:inline">Hide all</span>
+                      <EyeOff className="size-4" />
                     </button>
                   );
                 } else {
                   return (
                     <button
                       onClick={onShowAll}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider hover:bg-[color:var(--accent)]/10 hover:text-[color:var(--accent)] hover:border-[color:var(--accent)]/50"
+                      className="flex items-center justify-center w-9 h-9 rounded-full transition-all border bg-[color:var(--background)]/80 backdrop-blur-sm text-[color:var(--foreground)] border-divider hover:bg-[color:var(--accent)]/10 hover:text-[color:var(--accent)] hover:border-[color:var(--accent)]/50"
                       title="Show all layers"
                     >
-                      <Eye className="size-3.5" />
-                      <span className="hidden sm:inline">Show all</span>
+                      <Eye className="size-4" />
                     </button>
                   );
                 }

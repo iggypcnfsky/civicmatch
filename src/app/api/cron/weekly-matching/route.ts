@@ -8,6 +8,17 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🎯 Starting bi-weekly matching job check...');
 
+    // Check if weekly matching is enabled
+    const isEnabled = process.env.WEEKLY_MATCHING_ENABLED !== 'false';
+    if (!isEnabled) {
+      console.log('⏸️ Weekly matching is disabled (WEEKLY_MATCHING_ENABLED=false)');
+      return NextResponse.json({
+        success: true,
+        message: 'Weekly matching is disabled',
+        enabled: false
+      });
+    }
+
     // Verify this is coming from Vercel Cron (basic security)
     const authHeader = request.headers.get('Authorization');
     const cronSecret = process.env.CRON_SECRET;

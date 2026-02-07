@@ -132,6 +132,49 @@ export class ChallengeService {
   }
 
   /**
+   * Get all active challenges (for map display without bounds)
+   */
+  async getAllChallenges(
+    options: {
+      categories?: ChallengeCategory[];
+      severity?: ChallengeSeverity | null;
+      limit?: number;
+    } = {}
+  ): Promise<ChallengeForMap[]> {
+    const { categories, severity, limit = 500 } = options;
+
+    let query = this.supabase
+      .from('challenges')
+      .select('*')
+      .eq('status', 'active');
+
+    if (categories && categories.length > 0) {
+      query = query.in('category', categories);
+    }
+
+    if (severity) {
+      const severityOrder = { critical: 1, high: 2, medium: 3, low: 4 };
+      const maxOrder = severityOrder[severity];
+      const allowedSeverities = Object.entries(severityOrder)
+        .filter(([, order]) => order <= maxOrder)
+        .map(([sev]) => sev);
+      query = query.in('severity', allowedSeverities);
+    }
+
+    const { data, error } = await query
+      .order('severity', { ascending: false })
+      .order('published_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching all challenges:', error);
+      throw error;
+    }
+
+    return (data || []) as ChallengeForMap[];
+  }
+
+  /**
    * Get challenges within bounding box for map display
    */
   async getChallengesInBounds(

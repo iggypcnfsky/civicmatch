@@ -31,7 +31,7 @@ export function createChallengeMarkerContent(
   markerDiv.style.transform = 'scale(0.8)';
   markerDiv.style.boxShadow = '0 8px 20px -4px rgba(0, 0, 0, 0.4)';
 
-  // Triangle-alert icon (Lucide) with dark color
+  // Eye icon (Lucide) with dark color
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('width', '16');
@@ -43,18 +43,16 @@ export function createChallengeMarkerContent(
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
 
-  // Triangle-alert paths
+  // Eye icon paths
   const path1 = document.createElementNS(svgNS, 'path');
-  path1.setAttribute('d', 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3');
+  path1.setAttribute('d', 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z');
   svg.appendChild(path1);
 
-  const path2 = document.createElementNS(svgNS, 'path');
-  path2.setAttribute('d', 'M12 9v4');
+  const path2 = document.createElementNS(svgNS, 'circle');
+  path2.setAttribute('cx', '12');
+  path2.setAttribute('cy', '12');
+  path2.setAttribute('r', '3');
   svg.appendChild(path2);
-
-  const path3 = document.createElementNS(svgNS, 'path');
-  path3.setAttribute('d', 'M12 17h.01');
-  svg.appendChild(path3);
 
   markerDiv.appendChild(svg);
 

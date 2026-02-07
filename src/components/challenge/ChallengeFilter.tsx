@@ -2,7 +2,7 @@
 // Allows filtering by category and severity
 
 import { Leaf, Home, Bus, Shield, Landmark, GraduationCap, Heart, ThermometerSun,
-         X, Filter, AlertTriangle } from 'lucide-react';
+         X, Filter, Eye } from 'lucide-react';
 import { useState } from 'react';
 import type { ChallengeCategory, ChallengeSeverity } from '@/types/challenge';
 import { CHALLENGE_CATEGORIES, getSeverityColor, getSeverityLabel } from '@/types/challenge';
@@ -64,7 +64,7 @@ export function ChallengeFilter({
       >
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-[var(--accent)]" />
-          <span className="font-medium text-sm">Civic Challenges</span>
+          <span className="font-medium text-sm">News</span>
           {isLoading ? (
             <span className="w-4 h-4 border-2 border-[var(--accent)]/30 border-t-[var(--accent)] rounded-full animate-spin" />
           ) : (
@@ -120,7 +120,7 @@ export function ChallengeFilter({
                     ['--tw-ring-color' as string]: getSeverityColor(severity),
                   }}
                 >
-                  <AlertTriangle className="w-3 h-3" />
+                  <Eye className="w-3 h-3" />
                   {getSeverityLabel(severity)}
                 </button>
               ))}

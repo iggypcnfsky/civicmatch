@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
-import { X, Eye, EyeOff, Lock, Plus, Users, Calendar, Briefcase, UserRound, MapPin, Video, Search, ArrowLeft, Link as LinkIcon, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { X, Eye, EyeOff, Lock, Plus, Users, UsersRound, Calendar, Briefcase, UserRound, MapPin, Video, Search, ArrowLeft, Link as LinkIcon, Sparkles, Euro, Leaf, Home, Bus, Shield, Landmark, GraduationCap, Heart, ThermometerSun } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import Logo from "@/components/Logo";
@@ -22,7 +22,19 @@ import type { CombinedEvent } from "@/types/discoveredEvent";
 
 const PAGE_SIZE = 24;
 
-type TabType = "people" | "projects" | "events" | "challenges";
+// News category icons mapping
+const NEWS_CATEGORY_ICONS: Record<string, { icon: React.ElementType; color: string; label: string }> = {
+  environment: { icon: Leaf, color: '#22c55e', label: 'Environment' },
+  housing: { icon: Home, color: '#f97316', label: 'Housing' },
+  transport: { icon: Bus, color: '#3b82f6', label: 'Transport' },
+  public_safety: { icon: Shield, color: '#ef4444', label: 'Safety' },
+  governance: { icon: Landmark, color: '#a855f7', label: 'Governance' },
+  education: { icon: GraduationCap, color: '#eab308', label: 'Education' },
+  health: { icon: Heart, color: '#ec4899', label: 'Health' },
+  climate: { icon: ThermometerSun, color: '#f97316', label: 'Climate' },
+};
+
+type TabType = "people" | "projects" | "events" | "news" | "jobs";
 
 export default function ExplorePage() {
   const { status } = useAuth();
@@ -54,6 +66,10 @@ export default function ExplorePage() {
   const [showProjects, setShowProjects] = useState(true);
   const [showEvents, setShowEvents] = useState(true);
   const [showChallenges, setShowChallenges] = useState(true);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  
+  // News category filter state
+  const [selectedNewsCategories, setSelectedNewsCategories] = useState<string[]>([]);
   const [offset, setOffset] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -61,11 +77,36 @@ export default function ExplorePage() {
   
   const [mapBounds, setMapBounds] = useState<BoundingBox | null>(null);
   
-  // Fetch challenges based on map bounds
-  const { challenges, loading: challengesLoading, error: challengesError, refetch: refetchChallenges } = useChallenges(mapBounds, {
-    enabled: showChallenges,
-    limit: 100,
-  });
+  // Fetch challenges once on load (not based on map bounds)
+  const [challenges, setChallenges] = useState<ChallengeForMap[]>([]);
+  const [challengesLoading, setChallengesLoading] = useState(false);
+  const [challengesError, setChallengesError] = useState<string | null>(null);
+  
+  // Load all challenges once on mount
+  const fetchAllChallenges = useCallback(async () => {
+    if (!showChallenges) return;
+    
+    setChallengesLoading(true);
+    setChallengesError(null);
+    
+    try {
+      const response = await fetch('/api/challenges?all=true&limit=500');
+      if (!response.ok) {
+        throw new Error('Failed to fetch challenges');
+      }
+      const data = await response.json();
+      setChallenges(data.challenges || []);
+    } catch (err) {
+      console.error('Error fetching challenges:', err);
+      setChallengesError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setChallengesLoading(false);
+    }
+  }, [showChallenges]);
+  
+  useEffect(() => {
+    fetchAllChallenges();
+  }, [fetchAllChallenges]); // Only re-fetch if showChallenges toggle changes
 
   async function failSafeLogout() {
     try {
@@ -876,6 +917,8 @@ export default function ExplorePage() {
           setShowEvents(false);
           setShowChallenges(false);
         }}
+        onToggleFilters={() => setShowMobileFilters(!showMobileFilters)}
+        showFilters={showMobileFilters}
         onProfileClick={() => {
           setViewingOwnProfile(true);
           setActiveTab("people");
@@ -900,9 +943,132 @@ export default function ExplorePage() {
         }}
       />
 
-      <div className="fixed inset-0 top-12 flex">
-        {/* Left side - Tabs Panel (30%) */}
-        <div className="w-[30%] h-full bg-[color:var(--background)] border-r border-divider flex flex-col">
+      {/* Mobile Filter Dropdown - Appears below header when filter button is clicked */}
+      {showMobileFilters && (
+        <div className="md:hidden fixed top-12 left-0 right-0 z-30 bg-[color:var(--background)] border-b border-divider shadow-lg">
+          <div className="p-3 space-y-3">
+            <div className="text-xs font-medium text-[color:var(--muted-foreground)] uppercase tracking-wider px-1">
+              Show on Map
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowPeople(!showPeople)}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${
+                  showPeople 
+                    ? 'bg-[color:var(--accent)] text-[color:var(--background)] border-[color:var(--accent)]' 
+                    : 'bg-[color:var(--muted)]/10 text-[color:var(--foreground)] border-divider'
+                }`}
+              >
+                <UserRound className="size-4" />
+                <span>People</span>
+              </button>
+              <button
+                onClick={() => setShowProjects(!showProjects)}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${
+                  showProjects 
+                    ? 'bg-green-500 text-gray-900 border-green-500' 
+                    : 'bg-[color:var(--muted)]/10 text-[color:var(--foreground)] border-divider'
+                }`}
+              >
+                <UsersRound className="size-4" />
+                <span>Projects</span>
+              </button>
+              <button
+                onClick={() => setShowEvents(!showEvents)}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${
+                  showEvents 
+                    ? 'bg-blue-500 text-gray-900 border-blue-500' 
+                    : 'bg-[color:var(--muted)]/10 text-[color:var(--foreground)] border-divider'
+                }`}
+              >
+                <Calendar className="size-4" />
+                <span>Events</span>
+              </button>
+              <button
+                onClick={() => setShowChallenges(!showChallenges)}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-medium transition-all border ${
+                  showChallenges 
+                    ? 'bg-amber-400 text-gray-900 border-amber-400' 
+                    : 'bg-[color:var(--muted)]/10 text-[color:var(--foreground)] border-divider'
+                }`}
+              >
+                <Eye className="size-4" />
+                <span>News</span>
+              </button>
+            </div>
+            <div className="border-t border-divider pt-2 flex gap-2">
+              {(() => {
+                const allVisible = showPeople && showProjects && showEvents && showChallenges;
+                if (allVisible) {
+                  return (
+                    <button
+                      onClick={() => {
+                        setShowPeople(false);
+                        setShowProjects(false);
+                        setShowEvents(false);
+                        setShowChallenges(false);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-divider bg-[color:var(--muted)]/10 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all"
+                    >
+                      <EyeOff className="size-3.5" />
+                      <span>Hide All</span>
+                    </button>
+                  );
+                } else {
+                  return (
+                    <button
+                      onClick={() => {
+                        setShowPeople(true);
+                        setShowProjects(true);
+                        setShowEvents(true);
+                        setShowChallenges(true);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-divider bg-[color:var(--muted)]/10 hover:bg-[color:var(--accent)]/10 hover:text-[color:var(--accent)] hover:border-[color:var(--accent)]/50 transition-all"
+                    >
+                      <Eye className="size-3.5" />
+                      <span>Show All</span>
+                    </button>
+                  );
+                }
+              })()}
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-divider bg-[color:var(--accent)] text-[color:var(--background)]"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`fixed inset-0 md:top-12 flex flex-col md:flex-row ${showMobileFilters ? 'top-[13rem]' : 'top-12'}`}>
+        {/* Right side - Map (70%) - First on mobile */}
+        <div className="h-[40vh] md:h-full md:w-[70%] order-1 md:order-2 relative">
+          <ExploreMap
+            profiles={profilesForMap}
+            projects={projectsForMap}
+            events={eventsForMap}
+            challenges={challengesForMap}
+            invitedIds={invitedIds}
+            onBoundsChange={setMapBounds}
+            centerOn={centerOn}
+            onProfileClick={setSelectedProfile}
+            onProjectClick={setSelectedProject}
+            onEventClick={(mapEvent) => {
+              // Find the original CombinedEvent by ID
+              const originalEvent = events.find(e => e.id === mapEvent.id);
+              if (originalEvent) {
+                setSelectedEvent(originalEvent);
+              }
+            }}
+            onChallengeClick={setSelectedChallenge}
+            className="w-full h-full"
+          />
+        </div>
+
+        {/* Left side - Tabs Panel (30%) - Second on mobile, full width */}
+        <div className="flex-1 md:w-[30%] md:flex-none h-[calc(60vh-3rem)] md:h-full bg-[color:var(--background)] border-t md:border-t-0 md:border-r border-divider flex flex-col order-2 md:order-1">
         {/* Tabs Header */}
         <div className="flex items-center border-b border-divider px-2">
           <button
@@ -920,7 +1086,7 @@ export default function ExplorePage() {
                 : "text-[color:var(--foreground)] opacity-60 hover:opacity-100"
             }`}
           >
-            <Users className="size-4" />
+            <UserRound className="size-4" />
             <span className="hidden sm:inline">People</span>
             <span className="text-xs opacity-60">({items.length})</span>
           </button>
@@ -939,7 +1105,7 @@ export default function ExplorePage() {
                 : "text-[color:var(--foreground)] opacity-60 hover:opacity-100"
             }`}
           >
-            <Briefcase className="size-4" />
+            <UsersRound className="size-4" />
             <span className="hidden sm:inline">Projects</span>
             <span className="text-xs opacity-60">({projects.length})</span>
           </button>
@@ -964,7 +1130,7 @@ export default function ExplorePage() {
           </button>
           <button
             onClick={() => {
-              setActiveTab("challenges");
+              setActiveTab("news");
               setSelectedProfile(null);
               setSelectedProject(null);
               setSelectedEvent(null);
@@ -972,33 +1138,119 @@ export default function ExplorePage() {
               setViewingOwnProfile(false);
             }}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-medium transition-colors ${
-              activeTab === "challenges"
+              activeTab === "news"
                 ? "text-[color:var(--accent)] border-b-2 border-[color:var(--accent)]"
                 : "text-[color:var(--foreground)] opacity-60 hover:opacity-100"
             }`}
           >
-            <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="12 2 22 20 2 20 12 2" />
-              <line x1="12" y1="8" x2="12" y2="14" />
-              <circle cx="12" cy="17" r="1" />
-            </svg>
-            <span className="hidden sm:inline">Challenges</span>
+            <Eye className="size-4" />
+            <span className="hidden sm:inline">News</span>
             <span className="text-xs opacity-60">({challenges.length})</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("jobs");
+              setSelectedProfile(null);
+              setSelectedProject(null);
+              setSelectedEvent(null);
+              setSelectedChallenge(null);
+              setViewingOwnProfile(false);
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-medium transition-colors ${
+              activeTab === "jobs"
+                ? "text-[color:var(--accent)] border-b-2 border-[color:var(--accent)]"
+                : "text-[color:var(--foreground)] opacity-60 hover:opacity-100"
+            }`}
+          >
+            <Euro className="size-4" />
+            <span className="hidden sm:inline">Jobs</span>
           </button>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Bar - With inline back button on mobile when viewing detail */}
         <div className="px-3 py-2 border-b border-divider">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 opacity-40" />
-            <input
-              type="text"
-              placeholder={`Search ${activeTab}...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-divider bg-[color:var(--muted)]/10 text-sm focus:outline-none focus:border-[color:var(--accent)]/50"
-            />
-          </div>
+          {(() => {
+            const isViewingDetail = viewingOwnProfile || selectedProfile || selectedProject || selectedEvent || selectedChallenge;
+            const backHandler = () => {
+              if (viewingOwnProfile) setViewingOwnProfile(false);
+              else if (selectedProfile) setSelectedProfile(null);
+              else if (selectedProject) setSelectedProject(null);
+              else if (selectedEvent) setSelectedEvent(null);
+              else if (selectedChallenge) setSelectedChallenge(null);
+            };
+            
+            // News category filter toggle
+            const toggleNewsCategory = (category: string) => {
+              setSelectedNewsCategories(prev => 
+                prev.includes(category) 
+                  ? prev.filter(c => c !== category)
+                  : [...prev, category]
+              );
+            };
+            
+            return (
+              <div className="flex items-center gap-2">
+                {/* Back button - visible on mobile when viewing a detail */}
+                {isViewingDetail && (
+                  <button
+                    onClick={backHandler}
+                    className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg border border-divider bg-[color:var(--muted)]/10 hover:bg-[color:var(--muted)]/20 transition-colors flex-shrink-0"
+                    aria-label="Back"
+                  >
+                    <ArrowLeft className="size-4" />
+                  </button>
+                )}
+                
+                {/* News tab: Category filter icons */}
+                {activeTab === "news" && !isViewingDetail ? (
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-transparent flex-1">
+                    {Object.entries(NEWS_CATEGORY_ICONS).map(([key, { icon: Icon, color, label }]) => {
+                      const isSelected = selectedNewsCategories.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => toggleNewsCategory(key)}
+                          title={label}
+                          className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-all flex-shrink-0 ${
+                            isSelected 
+                              ? 'border-transparent' 
+                              : 'border-divider bg-[color:var(--muted)]/10 hover:bg-[color:var(--muted)]/20'
+                          }`}
+                          style={isSelected ? { backgroundColor: `${color}30`, borderColor: color } : {}}
+                        >
+                          <Icon 
+                            className="size-4" 
+                            style={{ color: isSelected ? color : 'currentColor' }} 
+                          />
+                        </button>
+                      );
+                    })}
+                    {selectedNewsCategories.length > 0 && (
+                      <button
+                        onClick={() => setSelectedNewsCategories([])}
+                        className="text-xs text-[color:var(--muted-foreground)] hover:text-[color:var(--accent)] ml-1 px-2 py-1"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Other tabs: Search input */
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 opacity-40" />
+                    <input
+                      type="text"
+                      placeholder={`Search ${activeTab}...`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      disabled={!!isViewingDetail}
+                      className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-divider bg-[color:var(--muted)]/10 text-sm focus:outline-none focus:border-[color:var(--accent)]/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Content Area */}
@@ -1007,26 +1259,31 @@ export default function ExplorePage() {
             <EditableProfileDetail 
               profile={currentUserProfile}
               onBack={() => setViewingOwnProfile(false)}
+              isMobileInline
             />
           ) : selectedProfile ? (
             <ProfileDetail 
               profile={selectedProfile} 
               onBack={() => setSelectedProfile(null)} 
+              isMobileInline
             />
           ) : selectedProject ? (
             <ProjectDetail 
               project={selectedProject} 
               onBack={() => setSelectedProject(null)} 
+              isMobileInline
             />
           ) : selectedEvent ? (
             <EventDetail 
               event={selectedEvent} 
               onBack={() => setSelectedEvent(null)} 
+              isMobileInline
             />
           ) : selectedChallenge ? (
             <ChallengeDetail 
               challenge={selectedChallenge} 
               onBack={() => setSelectedChallenge(null)} 
+              isMobileInline
             />
           ) : (
             <>
@@ -1052,15 +1309,24 @@ export default function ExplorePage() {
                   onSelectEvent={setSelectedEvent}
                 />
               )}
-              {activeTab === "challenges" && (
+              {activeTab === "news" && (
                 <ChallengesList 
                   challenges={challenges} 
                   searchQuery={searchQuery}
+                  selectedCategories={selectedNewsCategories}
                   isLoading={challengesLoading}
                   error={challengesError}
                   onSelectChallenge={setSelectedChallenge}
-                  onRetry={refetchChallenges}
+                  onRetry={fetchAllChallenges}
                 />
+              )}
+              {activeTab === "jobs" && (
+                <div className="flex items-center justify-center h-full p-8">
+                  <div className="text-center opacity-60">
+                    <Euro className="size-12 mx-auto mb-4 opacity-40" />
+                    <p className="text-sm">Jobs coming soon.</p>
+                  </div>
+                </div>
               )}
             </>
           )}
@@ -1078,30 +1344,6 @@ export default function ExplorePage() {
             </button>
           </div>
         )}
-      </div>
-
-      {/* Right side - Map (70%) */}
-      <div className="w-[70%] h-full relative">
-        <ExploreMap
-          profiles={profilesForMap}
-          projects={projectsForMap}
-          events={eventsForMap}
-          challenges={challengesForMap}
-          invitedIds={invitedIds}
-          onBoundsChange={setMapBounds}
-          centerOn={centerOn}
-          onProfileClick={setSelectedProfile}
-          onProjectClick={setSelectedProject}
-          onEventClick={(mapEvent) => {
-            // Find the original CombinedEvent by ID
-            const originalEvent = events.find(e => e.id === mapEvent.id);
-            if (originalEvent) {
-              setSelectedEvent(originalEvent);
-            }
-          }}
-          onChallengeClick={setSelectedChallenge}
-          className="w-full h-full"
-        />
       </div>
 
       {/* Create Event Modal */}
@@ -1220,11 +1462,11 @@ function PeopleList({
 }
 
 // Profile Detail Component
-function ProfileDetail({ profile, onBack }: { profile: ProfileWithLocation; onBack: () => void }) {
+function ProfileDetail({ profile, onBack, isMobileInline }: { profile: ProfileWithLocation; onBack: () => void; isMobileInline?: boolean }) {
   return (
     <div className="h-full flex flex-col">
-      {/* Header with back button */}
-      <div className="flex items-center gap-3 p-4 border-b border-divider">
+      {/* Header with back button - hidden on mobile when inline */}
+      <div className={`flex items-center gap-3 p-4 border-b border-divider ${isMobileInline ? 'hidden md:flex' : ''}`}>
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-sm opacity-60 hover:opacity-100 transition-opacity"
@@ -1648,6 +1890,7 @@ function EventsList({
 function ChallengesList({ 
   challenges, 
   searchQuery,
+  selectedCategories,
   isLoading,
   error,
   onSelectChallenge,
@@ -1655,31 +1898,38 @@ function ChallengesList({
 }: { 
   challenges: ChallengeForMap[]; 
   searchQuery: string;
+  selectedCategories: string[];
   isLoading: boolean;
   error: string | null;
   onSelectChallenge: (challenge: ChallengeForMap) => void;
   onRetry?: () => void;
 }) {
-  const filteredChallenges = searchQuery.trim()
-    ? challenges.filter(c => 
-        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.location_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.category.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : challenges;
+  let filteredChallenges = challenges;
+  
+  // Filter by search query
+  if (searchQuery.trim()) {
+    filteredChallenges = filteredChallenges.filter(c => 
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.location_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
+  
+  // Filter by selected categories
+  if (selectedCategories.length > 0) {
+    filteredChallenges = filteredChallenges.filter(c => 
+      selectedCategories.includes(c.category)
+    );
+  }
 
   // Show error state (but still show cached challenges if available)
   if (error && filteredChallenges.length === 0) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center">
-          <svg className="size-12 mx-auto mb-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 22 20 2 20 12 2" />
-            <line x1="12" y1="8" x2="12" y2="14" />
-            <circle cx="12" cy="17" r="1" />
-          </svg>
-          <p className="text-sm opacity-80 mb-2">Failed to load challenges</p>
+          <Eye className="size-12 mx-auto mb-4 text-amber-500" />
+          <p className="text-sm opacity-80 mb-2">Failed to load news</p>
           <p className="text-xs opacity-50 mb-4">{error}</p>
           {onRetry && (
             <button
@@ -1699,7 +1949,7 @@ function ChallengesList({
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center opacity-60">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)] mx-auto mb-4" />
-          <p className="text-sm">Loading challenges...</p>
+          <p className="text-sm">Loading news...</p>
         </div>
       </div>
     );
@@ -1709,12 +1959,8 @@ function ChallengesList({
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center opacity-60">
-          <svg className="size-12 mx-auto mb-4 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 22 20 2 20 12 2" />
-            <line x1="12" y1="8" x2="12" y2="14" />
-            <circle cx="12" cy="17" r="1" />
-          </svg>
-          <p className="text-sm">{searchQuery ? "No challenges match your search." : "Move the map to see challenges in your area."}</p>
+          <Eye className="size-12 mx-auto mb-4 opacity-40" />
+          <p className="text-sm">{searchQuery ? "No news match your search." : "No news available at the moment."}</p>
         </div>
       </div>
     );
@@ -1811,11 +2057,11 @@ function ChallengeCard({
 }
 
 // Project Detail Component
-function ProjectDetail({ project, onBack }: { project: ProjectForMap; onBack: () => void }) {
+function ProjectDetail({ project, onBack, isMobileInline }: { project: ProjectForMap; onBack: () => void; isMobileInline?: boolean }) {
   return (
     <div className="h-full flex flex-col">
-      {/* Header with back button */}
-      <div className="flex items-center gap-3 p-4 border-b border-divider">
+      {/* Header with back button - hidden on mobile when inline */}
+      <div className={`flex items-center gap-3 p-4 border-b border-divider ${isMobileInline ? 'hidden md:flex' : ''}`}>
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-sm opacity-60 hover:opacity-100 transition-opacity"
@@ -1876,7 +2122,7 @@ function ProjectDetail({ project, onBack }: { project: ProjectForMap; onBack: ()
 }
 
 // Event Detail Component - Full event information inline in sidebar
-function EventDetail({ event, onBack }: { event: CombinedEvent; onBack: () => void }) {
+function EventDetail({ event, onBack, isMobileInline }: { event: CombinedEvent; onBack: () => void; isMobileInline?: boolean }) {
   const startDate = event.start_datetime;
   const endDate = event.end_datetime;
   
@@ -1914,8 +2160,8 @@ function EventDetail({ event, onBack }: { event: CombinedEvent; onBack: () => vo
   
   return (
     <div className="h-full flex flex-col">
-      {/* Header with back button */}
-      <div className="flex items-center gap-3 p-4 border-b border-divider">
+      {/* Header with back button - hidden on mobile when inline */}
+      <div className={`flex items-center gap-3 p-4 border-b border-divider ${isMobileInline ? 'hidden md:flex' : ''}`}>
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-sm opacity-60 hover:opacity-100 transition-opacity"
@@ -2116,15 +2362,15 @@ function EventDetail({ event, onBack }: { event: CombinedEvent; onBack: () => vo
 }
 
 // Challenge Detail Component
-function ChallengeDetail({ challenge, onBack }: { challenge: ChallengeForMap; onBack: () => void }) {
+function ChallengeDetail({ challenge, onBack, isMobileInline }: { challenge: ChallengeForMap; onBack: () => void; isMobileInline?: boolean }) {
   const category = getCategoryInfo(challenge.category);
   const severityColor = getSeverityColor(challenge.severity);
   const severityLabel = getSeverityLabel(challenge.severity);
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with back button */}
-      <div className="flex items-center gap-3 p-4 border-b border-divider">
+      {/* Header with back button - hidden on mobile when inline */}
+      <div className={`flex items-center gap-3 p-4 border-b border-divider ${isMobileInline ? 'hidden md:flex' : ''}`}>
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-sm opacity-60 hover:opacity-100 transition-opacity"
@@ -2215,7 +2461,7 @@ function ChallengeDetail({ challenge, onBack }: { challenge: ChallengeForMap; on
 }
 
 // Editable Profile Detail Component
-function EditableProfileDetail({ profile, onBack }: { profile: ProfileWithLocation; onBack: () => void }) {
+function EditableProfileDetail({ profile, onBack, isMobileInline }: { profile: ProfileWithLocation; onBack: () => void; isMobileInline?: boolean }) {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -2326,7 +2572,7 @@ function EditableProfileDetail({ profile, onBack }: { profile: ProfileWithLocati
       <div className="flex items-center justify-between p-4 border-b border-divider">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-sm opacity-60 hover:opacity-100 transition-opacity"
+          className={`flex items-center gap-2 text-sm opacity-60 hover:opacity-100 transition-opacity ${isMobileInline ? 'hidden md:flex' : ''}`}
         >
           <ArrowLeft className="size-4" />
           Back

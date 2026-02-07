@@ -83,19 +83,19 @@ export default function ResizableSplit({
   }, [isDragging, minLeftWidth, maxLeftWidth, storageKey]);
 
   return (
-    <div ref={containerRef} className="flex h-screen relative">
-      {/* Left panel */}
+    <div ref={containerRef} className="flex flex-col md:flex-row h-screen relative">
+      {/* Right panel (Map) - First on mobile, second on desktop */}
       <div
-        style={{ width: `${leftWidth}%` }}
-        className="overflow-y-auto"
+        style={{ width: `${100 - leftWidth}%` }}
+        className="h-[40vh] md:h-full order-1 md:order-2 overflow-hidden"
       >
-        {left}
+        {right}
       </div>
 
-      {/* Resize handle */}
+      {/* Resize handle - Hidden on mobile */}
       <div
         onMouseDown={handleMouseDown}
-        className={`hidden md:flex w-1 bg-[color:var(--divider)] hover:bg-[color:var(--accent)] cursor-col-resize items-center justify-center transition-colors group relative ${
+        className={`hidden md:flex w-1 bg-[color:var(--divider)] hover:bg-[color:var(--accent)] cursor-col-resize items-center justify-center transition-colors group relative order-2 ${
           isDragging ? 'bg-[color:var(--accent)]' : ''
         }`}
       >
@@ -106,12 +106,12 @@ export default function ResizableSplit({
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* Left panel (Sidebar) - Second on mobile, first on desktop */}
       <div
-        style={{ width: `${100 - leftWidth}%` }}
-        className="hidden md:block overflow-hidden"
+        style={{ width: `${leftWidth}%` }}
+        className="flex-1 md:flex-none w-full md:w-auto order-2 md:order-1 overflow-y-auto"
       >
-        {right}
+        {left}
       </div>
     </div>
   );
